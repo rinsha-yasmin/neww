@@ -1,0 +1,509 @@
+<script>
+    (function() {
+        "use strict";
+
+        var CONFIG = {
+            nav: [{
+                    id: "ig-nav-shop",
+                    label: "Shop",
+                    href: "https://www.goindigo.in/shop",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Union_(3).png?ui-ux=newui"
+                },
+                {
+                    id: "ig-nav-deals",
+                    label: "Deals",
+                    href: "https://www.goindigo.in/shop/categories/bags-and-backpack/1081.html",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Discount.png?ui-ux=newui"
+                },
+                {
+                    id: "ig-nav-6epick",
+                    label: "My orders",
+                    href: "https://www.goindigo.in/shop/order-history.html",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Union_(4).png?ui-ux=newui"
+                },
+                {
+                    id: "ig-nav-categories",
+                    label: "Categories",
+                    href: "#",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Categories_(2).png?ui-ux=newui",
+                    isCategories: true
+                }
+            ],
+            categories: [{
+                    label: "Backpack",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Backpack_(1).png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/bags-and-backpack/1081.html?linkNav=Categories%7CBagpack%7C1"
+                },
+                {
+                    label: "Appliances",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Refrigerator.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/home-appliances/1085.html?linkNav=Categories%7CAppliances%7C2"
+                },
+                {
+                    label: "Clothing",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Clothing_(2).png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/clothing/1139.html?linkNav=Categories%7CClothing%7C3"
+                },
+                {
+                    label: "Gift Cards",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gift_Card.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/gift-card/1140.html?linkNav=Categories%7CGiftCards%7C3"
+                },
+                {
+                    label: "Grooming",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Union%20(2).png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/personal-care-and-grooming/1165.html?linkNav=Categories%7CGrooming%7C4"
+                },
+                {
+                    label: "Audio",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Audio.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/speakers-and-headphones/1080.html?linkNav=Categories%7CAudio%7C5"
+                },
+                {
+                    label: "Fragrance",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Fragrance.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/fragrances/1082.html?linkNav=Categories%7CFragrance%7C6"
+                },
+                {
+                    label: "Eyewear",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Eyewear.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/sunglasses/1108.html?linkNav=Categories%7CEyewear%7C7"
+                },
+                {
+                    label: "Mobiles",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Mobiles_(2).png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/mobiles-and-tablets/1078.html?linkNav=Categories%7CMobiles%7C8"
+                },
+                {
+                    label: "Accessories",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Accessories.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/mobile-and-laptop-accessories/1079.html?linkNav=Categories%7CAccessories%7C9"
+                },
+                {
+                    label: "Watches",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Watches.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/watches-and-more/1083.html?linkNav=Categories%7CWatches%7C10"
+                },
+                {
+                    label: "TV",
+                    icon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/TV.png?ui-ux=newui",
+                    href: "https://www.goindigo.in/shop/categories/tv-and-home-theatre/1084.html?linkNav=Categories%7CTV%7C11"
+                }
+            ]
+        };
+
+        /* ============================================================
+           MOBILE-ONLY GUARD + RESIZE HANDLER
+        ============================================================ */
+        var MOBILE_BREAKPOINT = 768;
+        var _nav, _backdrop, _sheet;
+
+        function isMobile() {
+            return window.innerWidth < MOBILE_BREAKPOINT;
+        }
+
+        function mount() {
+            if (!isMobile()) return;
+            var originalNav = document.querySelector("nav.headerv2__mob__nav");
+            if (!originalNav) return;
+            injectStyles();
+            buildNav(originalNav);
+            buildSheet();
+        }
+
+        function unmount() {
+            ["ig-custom-mob-nav", "ig-cat-backdrop", "ig-cat-sheet", "ig-custom-nav-styles"].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.remove();
+            });
+            _nav = _backdrop = _sheet = null;
+        }
+
+        var _resizeTimer;
+        window.addEventListener("resize", function() {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(function() {
+                if (isMobile()) {
+                    if (!document.getElementById("ig-custom-mob-nav")) mount();
+                } else {
+                    unmount();
+                }
+            }, 100);
+        });
+
+        /* ============================================================
+           STYLES
+        ============================================================ */
+        function injectStyles() {
+            if (document.getElementById("ig-custom-nav-styles")) return;
+            var s = document.createElement("style");
+            s.id = "ig-custom-nav-styles";
+            s.textContent = [
+
+                /* ── NAV BAR ── */
+                "#ig-custom-mob-nav{",
+                "position:fixed;bottom:0;left:0;right:0;",
+                "display:flex;align-items:stretch;",
+                "background:#000;",
+                "z-index:9999;",
+                "height:88px;",
+                "border-top:1px solid #222;",
+                "}",
+
+                "#ig-custom-mob-nav a,",
+                "#ig-custom-mob-nav button{",
+                "flex:1;",
+                "display:flex;flex-direction:column;",
+                "align-items:center;justify-content:center;",
+                "gap:4px;",
+                "background:none;border:none;",
+                "color:#7A85A0;",
+                "font-size:10px;font-family:inherit;",
+                "text-decoration:none;",
+                "cursor:pointer;",
+                "padding:6px 0;",
+                "-webkit-tap-highlight-color:transparent;",
+                "outline:none;",
+                "font-family: var(--font-family-poppins-medium)!important;",
+                "line-height:16px;",
+                "transition:color 0.15s;",
+                "}",
+
+                "#ig-custom-mob-nav a:active,",
+                // "#ig-custom-mob-nav button:active{opacity:0.6;}",
+
+                /* active nav item — yellow text + yellow icon tint */
+                "#ig-custom-mob-nav .ig-nav-active{color:#A97D0E;}",
+                "#ig-custom-mob-nav .ig-nav-active img{",
+                "filter:invert(1) sepia(1) saturate(5) hue-rotate(10deg);",
+                "}",
+
+                "#ig-custom-mob-nav img{",
+                "width:22px;height:22px;",
+                "display:block;pointer-events:none;",
+                "transition:filter 0.15s;",
+                "}",
+
+                /* ── BACKDROP ── */
+                "#ig-cat-backdrop{",
+                "position:fixed;left:0;right:0;bottom:88px;top:0;",
+                "background:rgba(0,0,0,0);",
+                "z-index:8999;",
+                "pointer-events:none;",
+                "transition:background 0.44s ease;",
+                "}",
+                "#ig-cat-backdrop.open{",
+                "background:linear-gradient(135deg,#2f3542 0%,#3b4252 50%,#454c5c 100%);",
+                "pointer-events:auto;",
+                "}",
+
+                /* ── SHEET ──
+                   Anchored at bottom:0 so translateY(100%) is always
+                   exactly its own height — guaranteed off-screen.
+                   Nav bar (z-index:9000) naturally overlaps the sheet
+                   edge, creating the "slides from behind footer" effect.
+                */
+                "#ig-cat-sheet{",
+                "position:fixed;left:0;right:0;",
+                "bottom:0;",
+                "transform:translateY(100%);",
+                "background:#0D0D0D;",
+                "border-radius:16px 16px 0 0;",
+                "z-index:9000;",
+
+                "transition:transform 0.44s cubic-bezier(0.32,0.72,0,1);",
+                "will-change:transform;",
+                "max-height:calc(100vh - 88px);",
+                "overflow-y:auto;",
+                "-webkit-overflow-scrolling:touch;",
+                "}",
+                "#ig-cat-sheet.open{transform:translateY(0);bottom: 88px;}",
+
+                /* drag handle */
+                "#ig-cat-sheet-handle{",
+                "width:84px;height:4px;",
+                "background:#A97D0E;border-radius:2px;",
+                "margin:12px auto 0;",
+                "}",
+
+                /* sheet title */
+                "#ig-cat-sheet-title{",
+                "font-size:20px;font-weight:500;",
+                "color:#7A85A0;",
+                "padding:25px 30px 20px;",
+
+                "font-family: var(--font-family-bauhuas-std-medium);",
+                "margin:0;",
+                "}",
+
+                /* ── CATEGORY GRID ── */
+                "#ig-cat-grid{",
+                "display:grid;",
+                "grid-template-columns:repeat(3,1fr);",
+                "gap:25px;",
+                "padding:20px;",
+                "}",
+
+                /* each card: 94px tall, 16px radius, transparent border (activates on select) */
+                "#ig-cat-grid a{",
+                "display:flex;flex-direction:column;",
+                "align-items:center;justify-content:center;",
+                "gap:8px;",
+                "height:94px;",
+                "background:#EFEFEF0D;",
+                "border-radius:16px;",
+                "text-decoration:none;",
+                "border: 1px solid rgba(239, 239, 239, 0.1);",
+                "-webkit-tap-highlight-color:transparent;",
+                "transition:border-color 0.15s,background 0.15s;",
+                "}",
+                "#ig-cat-grid a:active{background:#f0f0f0;}",
+
+                /* active category card — yellow border + amber label */
+                "#ig-cat-grid a.ig-cat-active{border-color:#FFD700;}",
+                "#ig-cat-grid a.ig-cat-active span{color:#b8960c;font-weight:600;}",
+
+                /* icon wrapper: 36×36, radius 12 */
+                ".ig-cat-icon-wrap{",
+                "width:36px;height:36px;",
+                "border-radius:12px;",
+                "background:#FFFFFF0D;",
+                "display:flex;align-items:center;justify-content:center;",
+                "overflow:hidden;flex-shrink:0;",
+                "}",
+                ".ig-cat-icon-wrap img{",
+                "width:24px;height:24px;",
+                "display:block;object-fit:contain;",
+                "}",
+
+                /* category label */
+                "#ig-cat-grid span{",
+                "font-size:14px;",
+                "color:#FFFFFFB2;",
+                "text-align:center;",
+                "line-height:1.3;",
+                "padding:0 4px;",
+                "transition:color 0.15s;",
+                "font-family: var(--font-family-poppins-regular);",
+
+                "}"
+
+            ].join("");
+            document.head.appendChild(s);
+        }
+
+        /* ============================================================
+           BUILD NAV BAR
+        ============================================================ */
+        function buildNav(originalNav) {
+            _nav = document.createElement("nav");
+            _nav.id = "ig-custom-mob-nav";
+            _nav.setAttribute("role", "tablist");
+            _nav.setAttribute("aria-label", "Mobile Navigation");
+
+            CONFIG.nav.forEach(function(item) {
+                var el;
+                if (item.isCategories) {
+                    el = document.createElement("button");
+                    el.setAttribute("type", "button");
+                } else {
+                    el = document.createElement("a");
+                    el.href = item.href;
+
+                    // Disable Shop click
+                    if (item.id === "ig-nav-shop") {
+                        el.href = "javascript:void(0)";
+                        el.setAttribute("aria-disabled", "true");
+
+                        el.addEventListener("click", function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        });
+                    }
+                }
+
+                el.id = item.id;
+                el.setAttribute("role", "tab");
+
+
+                if (item.id === "ig-nav-shop") {
+                    el.classList.add("ig-nav-active");
+                }
+
+
+                /* active state tracking */
+                el.addEventListener("click", function() {
+                    _nav.querySelectorAll("a, button").forEach(function(n) {
+                        n.classList.remove("ig-nav-active");
+                    });
+                    el.classList.add("ig-nav-active");
+                });
+
+                var img = document.createElement("img");
+                img.src = item.icon;
+                img.alt = "";
+                img.setAttribute("aria-hidden", "true");
+                img.width = 22;
+                img.height = 22;
+
+                var label = document.createElement("span");
+                label.textContent = item.label;
+
+                el.appendChild(img);
+                el.appendChild(label);
+                _nav.appendChild(el);
+            });
+
+            originalNav.parentNode.replaceChild(_nav, originalNav);
+        }
+
+        /* ============================================================
+           BUILD CATEGORY SHEET
+        ============================================================ */
+        function buildSheet() {
+            /* backdrop */
+            _backdrop = document.createElement("div");
+            _backdrop.id = "ig-cat-backdrop";
+            _backdrop.setAttribute("aria-hidden", "true");
+
+            /* sheet */
+            _sheet = document.createElement("div");
+            _sheet.id = "ig-cat-sheet";
+            _sheet.setAttribute("role", "dialog");
+            _sheet.setAttribute("aria-modal", "true");
+            _sheet.setAttribute("aria-label", "Categories");
+
+            var handle = document.createElement("div");
+            handle.id = "ig-cat-sheet-handle";
+            handle.setAttribute("aria-hidden", "true");
+
+            var title = document.createElement("p");
+            title.id = "ig-cat-sheet-title";
+            title.textContent = "Explore by categories";
+
+            var grid = document.createElement("div");
+            grid.id = "ig-cat-grid";
+
+            CONFIG.categories.forEach(function(cat) {
+                var link = document.createElement("a");
+                link.href = cat.href;
+
+                var wrap = document.createElement("div");
+                wrap.className = "ig-cat-icon-wrap";
+
+                var icon = document.createElement("img");
+                icon.src = cat.icon;
+                icon.alt = "";
+                icon.setAttribute("aria-hidden", "true");
+                icon.width = 24;
+                icon.height = 24;
+
+                var label = document.createElement("span");
+                label.textContent = cat.label;
+
+                wrap.appendChild(icon);
+                link.appendChild(wrap);
+                link.appendChild(label);
+                grid.appendChild(link);
+            });
+
+            _sheet.appendChild(handle);
+            _sheet.appendChild(title);
+            _sheet.appendChild(grid);
+
+            /* ── OPEN / CLOSE ── */
+            var _open = false;
+            var _busy = false;
+            var DURATION = 460;
+
+            function openSheet() {
+                if (_open || _busy) return;
+                _busy = true;
+                _open = true;
+                var btn = document.getElementById("ig-nav-categories");
+                if (btn) btn.setAttribute("aria-expanded", "true");
+                _backdrop.setAttribute("aria-hidden", "false");
+                /* force reflow so CSS transition fires cleanly */
+                _sheet.getBoundingClientRect();
+                _backdrop.classList.add("open");
+                _sheet.classList.add("open");
+                setTimeout(function() {
+                    _busy = false;
+                }, DURATION);
+            }
+
+            function closeSheet() {
+                if (!_open || _busy) return;
+                _busy = true;
+                _open = false;
+                var btn = document.getElementById("ig-nav-categories");
+                if (btn) btn.setAttribute("aria-expanded", "false");
+                _backdrop.classList.remove("open");
+                _sheet.classList.remove("open");
+                _backdrop.setAttribute("aria-hidden", "true");
+                setTimeout(function() {
+                    _busy = false;
+                }, DURATION);
+            }
+
+            _nav.addEventListener(
+                "click",
+                function() {
+                    if (_open) {
+                        closeSheet();
+                    }
+                },
+                true // capture phase is KEY
+            );
+
+            document.addEventListener("click", function(e) {
+                if (!_open) return;
+
+                var isInsideSheet = _sheet.contains(e.target);
+                var isCategoriesBtn = e.target.closest("#ig-nav-categories");
+
+                if (!isInsideSheet && !isCategoriesBtn) {
+                    closeSheet();
+                }
+            });
+            /* categories button toggles sheet */
+            var catBtn = _nav && _nav.querySelector("#ig-nav-categories");
+            if (catBtn) {
+                catBtn.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    _open ? closeSheet() : openSheet();
+                });
+            }
+
+            /* backdrop tap closes sheet */
+            _backdrop.addEventListener("click", function(e) {
+                if (e.target === _backdrop) closeSheet();
+            });
+
+            /* tapping a category marks it active and closes sheet */
+            grid.addEventListener("click", function(e) {
+                var link = e.target.closest("a");
+                if (!link) return;
+                grid.querySelectorAll("a").forEach(function(a) {
+                    a.classList.remove("ig-cat-active");
+                });
+                link.classList.add("ig-cat-active");
+                closeSheet();
+            });
+
+            /* escape key closes sheet */
+            document.addEventListener("keydown", function(e) {
+                if (e.key === "Escape" && _open) closeSheet();
+            });
+
+            document.body.appendChild(_backdrop);
+            document.body.appendChild(_sheet);
+        }
+
+        /* ============================================================
+           INIT
+        ============================================================ */
+        mount();
+
+    })();
+</script>
