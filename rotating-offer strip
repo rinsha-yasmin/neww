@@ -1,0 +1,136 @@
+
+(function() {
+    if (document.getElementById("offer-rotator")) return;
+
+    const style = document.createElement("style");
+    style.textContent = `
+        #offer-rotator {
+            width: 100%;
+            background: #000099;
+            padding: 4px 0;
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1031;
+            font-size: 14px;
+			  font-family: var(--font-family-bauhuas-std-medium);
+            font-weight: 500;
+            display: block;
+            transition: transform 0.3s ease;
+            overflow: hidden;
+        }
+
+        #offer-rotator.hidden {
+            transform: translateY(-100%);
+        }
+
+        body.has-offer-bar {
+            padding-top: var(--offer-bar-height, 32px);
+        }
+
+        body.has-offer-bar.offer-bar-hidden {
+            padding-top: 0;
+        }
+
+        body.has-offer-bar .headerv2.fixed-top,
+        body.has-offer-bar .headerv2 {
+            top: var(--offer-bar-height, 32px) !important;
+        }
+
+        body.has-offer-bar.offer-bar-hidden .headerv2.fixed-top,
+        body.has-offer-bar.offer-bar-hidden .headerv2 {
+            top: 0 !important;
+        }
+
+        .offer-track {
+            display: flex;
+            width: max-content;
+            white-space: nowrap;
+            animation: ticker-scroll 18s linear infinite;
+        }
+
+        .offer-track span {
+            padding: 0 80px;
+        }
+
+        @keyframes ticker-scroll {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        @media (max-width: 768px) {
+            #offer-rotator {
+                font-size: 12px;
+                padding: 3px 0;
+            }
+            body.has-offer-bar {
+                --offer-bar-height: 23px;
+            }
+            .offer-track {
+                animation-duration: 20s;
+            }
+        }
+
+        @media (min-width: 769px) {
+            body.has-offer-bar {
+                --offer-bar-height: 32px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+
+    const offerBar = document.createElement("div");
+    offerBar.id = "offer-rotator";
+
+    const text = "&#x26A1; BUY BIG, SAVE BIGGER &#x26A1; 50% OFF* up to &#x20B9;1,250 (Code: SUMMER50) &#x26A1; 30% OFF* up to &#x20B9;45,000 (Code: FLAT30) &#x26A1; 25% OFF* on all activities (Code: FLAT25)";
+
+    // Two identical copies — when first copy scrolls out, second takes over seamlessly
+    // translateX(-50%) always lands at the exact start of copy 2, making it a perfect loop
+    offerBar.innerHTML = `<div class="offer-track"><span>${text}</span><span>${text}</span></div>`;
+
+    document.body.insertBefore(offerBar, document.body.firstChild);
+    document.body.classList.add('has-offer-bar');
+
+    function updateOfferBarHeight() {
+        const height = offerBar.offsetHeight;
+        document.documentElement.style.setProperty('--offer-bar-height', `${height}px`);
+    }
+
+    updateOfferBarHeight();
+
+    let lastScroll = 0;
+    let ticking = false;
+
+    function handleScroll() {
+        const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+
+        if (currentScroll <= 0) {
+            offerBar.classList.remove("hidden");
+            document.body.classList.remove('offer-bar-hidden');
+        } else if (currentScroll > lastScroll && currentScroll > 50) {
+            offerBar.classList.add("hidden");
+            document.body.classList.add('offer-bar-hidden');
+        } else if (currentScroll < lastScroll && currentScroll <= 50) {
+            offerBar.classList.remove("hidden");
+            document.body.classList.remove('offer-bar-hidden');
+        }
+
+        lastScroll = currentScroll <= 0 ? 0 : currentScroll;
+        ticking = false;
+    }
+
+    window.addEventListener("scroll", function() {
+        if (!ticking) {
+            window.requestAnimationFrame(handleScroll);
+            ticking = true;
+        }
+    });
+
+    let resizeTimer;
+    window.addEventListener("resize", function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(updateOfferBarHeight, 250);
+    });
+
+})();
