@@ -1,0 +1,146 @@
+<script>
+    (function() {
+        if (document.getElementById("offer-rotator")) return;
+
+        // Inject styles
+        const style = document.createElement("style");
+        style.textContent = `
+        #offer-rotator {
+            width: 100%;
+            background: #000099;
+            padding: 4px 0;
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1031;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: center;
+            display: block;
+            transition: transform 0.3s ease;
+            overflow: hidden;
+        }
+        
+        #offer-rotator.hidden {
+            transform: translateY(-100%);
+        }
+        
+        /* Add padding to body when offer bar is visible */
+        body.has-offer-bar {
+            padding-top: var(--offer-bar-height, 32px);
+        }
+        
+        body.has-offer-bar.offer-bar-hidden {
+            padding-top: 0;
+        }
+        
+        /* Ensure header stays below offer bar */
+        body.has-offer-bar .headerv2.fixed-top,
+        body.has-offer-bar .headerv2 {
+            top: var(--offer-bar-height, 32px) !important;
+        }
+        
+        body.has-offer-bar.offer-bar-hidden .headerv2.fixed-top,
+        body.has-offer-bar.offer-bar-hidden .headerv2 {
+            top: 0 !important;
+        }
+        
+        .offer-track {
+            padding: 0 20px;
+        }
+        
+        @media (max-width: 768px) {
+            #offer-rotator {
+                font-size: 12px;
+                padding: 3px 0;
+            }
+            
+            body.has-offer-bar {
+                --offer-bar-height: 23px;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            body.has-offer-bar {
+                --offer-bar-height: 32px;
+            }
+        }
+    `;
+        document.head.appendChild(style);
+
+        // Create offer bar
+        const offerBar = document.createElement("div");
+        offerBar.id = "offer-rotator";
+
+        const isMobile = window.innerWidth <= 768;
+        const sentence = isMobile ?
+            "50%* Off on first 2 bookings | 25%- 30%* Off sitewide" :
+            "50%* Off on first 2 bookings | 30%* Off above ₹50,000 | 25%* Off sitewide.";
+
+        offerBar.innerHTML = '<div class="offer-track">' + sentence + '</div>';
+
+
+        // Insert at the very beginning of body
+        document.body.insertBefore(offerBar, document.body.firstChild);
+
+        // Add class to body
+        document.body.classList.add('has-offer-bar');
+
+        // Set CSS variable for offer bar height
+        function updateOfferBarHeight() {
+            const height = offerBar.offsetHeight;
+            document.documentElement.style.setProperty('--offer-bar-height', `${height}px`);
+        }
+
+        updateOfferBarHeight();
+
+        // Scroll behavior
+        let lastScroll = 0;
+        let ticking = false;
+
+        function handleScroll() {
+            const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (currentScroll <= 0) {
+                // At top - show offer bar
+                offerBar.classList.remove("hidden");
+                document.body.classList.remove('offer-bar-hidden');
+            } else if (currentScroll > lastScroll && currentScroll > 50) {
+                // Scrolling down - hide offer bar
+                offerBar.classList.add("hidden");
+                document.body.classList.add('offer-bar-hidden');
+            } else if (currentScroll < lastScroll && currentScroll <= 50) {
+                // Scrolling up near top - show offer bar
+                offerBar.classList.remove("hidden");
+                document.body.classList.remove('offer-bar-hidden');
+            }
+
+            lastScroll = currentScroll <= 0 ? 0 : currentScroll;
+            ticking = false;
+        }
+
+        window.addEventListener("scroll", function() {
+            if (!ticking) {
+                window.requestAnimationFrame(handleScroll);
+                ticking = true;
+            }
+        });
+
+        // Resize behavior
+        let resizeTimer;
+        window.addEventListener("resize", function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                const newIsMobile = window.innerWidth <= 768;
+                const newSentence = newIsMobile ?
+                    "50%* Off on first 2 bookings | 25%- 30%* Off sitewide" :
+                    "50%* Off on first 2 bookings | 30%* Off above ₹50,000 | 25%* Off sitewide.";
+
+                offerBar.querySelector('.offer-track').innerHTML = newSentence;
+                updateOfferBarHeight();
+            }, 250);
+        });
+
+    })();
+</script>
