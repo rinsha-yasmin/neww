@@ -1,0 +1,259 @@
+
+(function () {
+    "use strict";
+
+    var STYLE_ID = "ig-subcat-styles";
+    var BAR_ID   = "ig-subcat-bar";
+
+    var SUBCATS = [
+        { label: "Backpack",    href: "https://www.goindigo.in/shop/categories/bags-and-backpack/backpack/1173.html" },
+        { label: "Laptop Bag",  href: "https://www.goindigo.in/shop/categories/bags-and-backpack/laptop-bag/1174.html" },
+        { label: "Sling Bag",   href: "https://www.goindigo.in/shop/categories/bags-and-backpack/sling-bag/1175.html" },
+		{ label: "Sling Bag",   href: "https://www.goindigo.in/shop/categories/bags-and-backpack/sling-bag/1175.html" },
+        { label: "Bestsellers", href: "https://www.goindigo.in/shop/categories/bags-and-backpack/bestseller/1176.html" }
+    ];
+
+    var VISIBLE     = 4;
+    var SHOW_ARROWS = SUBCATS.length > VISIBLE;
+
+    /* ============================================================
+       STYLES
+    ============================================================ */
+    function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        var s = document.createElement("style");
+        s.id = STYLE_ID;
+        s.textContent = [
+
+            /* Hide powered-by — takes its space with our bar */
+            ".chip-container__powered-by {",
+            "  display: none !important;",
+            "}",
+
+            /* Bar sits exactly where powered-by was */
+            "#ig-subcat-bar {",
+            "  display: flex;",
+            "  align-items: center;",
+            "  gap: 12px;",
+            "  width: 498px;",
+            "  box-sizing: border-box;",
+            "  padding: 6px 0 4px;",
+            "}",
+
+            "#ig-subcat-scroll {",
+            "  display: flex;",
+            "  gap: 8px;",
+            "  overflow: hidden;",
+            "  flex: 1;",
+            "  min-width: 0;",
+            "}",
+
+            "#ig-subcat-scroll a {",
+            "  display: inline-flex;",
+            "  align-items: center;",
+            "  flex-shrink: 0;",
+            "  padding: 8px 17px;",
+            "  border-radius: 999px;",
+            "  border: 1px solid #1d1d1d;",
+            "  background: #1d1d1d;",
+            "  color: #cdd1db;",
+            "  font-size: 12px;",
+            "  font-family: var(--font-family-poppins-medium);",
+            "  text-decoration: none;",
+            "  white-space: nowrap;",
+            "  transition: border-color 0.15s, color 0.15s;",
+            "}",
+
+            "#ig-subcat-scroll a.ig-subcat-active {",
+            "  border-color: #333;",
+            "  color: #333;",
+            "  font-weight: 600;",
+            "}",
+
+            ".ig-subcat-arrow {",
+            "  width: 30px;",
+            "  height: 30px;",
+            "  min-width: 26px;",
+            "  border-radius: 50%;",
+            "  border: 1.5px solid #A97D0E;",
+            "  background: #A97D0E;",
+            "  display: flex;",
+            "  align-items: center;",
+            "  justify-content: center;",
+            "  cursor: pointer;",
+            "  font-size: 18px;",
+            "  font-weight: 400;",
+            "  line-height: 1;",
+            "  color: #fff;",
+            "  flex-shrink: 0;",
+            "  user-select: none;",
+            "  -webkit-tap-highlight-color: transparent;",
+            "}",
+
+            ".ig-subcat-arrow.ig-arr-disabled {",
+            "  border-color: #ccc;",
+			"  background: hsla(0, 0%, 100%, .239);",
+            "  color: #cdd1db;",
+            "  cursor: default;",
+            "  pointer-events: none;",
+            "}",
+			"@media (max-width: 768px) {",
+
+"  #ig-subcat-scroll a {",
+"    padding: 8px 8px;",
+"    font-size: 11px;",
+"  }",
+
+"  #ig-subcat-bar {",
+"    gap: 5px;",
+"    width: 220px;",
+"  }",
+
+"  .ig-subcat-arrow {",
+"    width: 22px;",
+"    height: 22px;",
+"    min-width: 22px;",
+"    font-size: 15px;",
+"  }",
+
+"}",
+
+        ].join("\n");
+        document.head.appendChild(s);
+    }
+
+    /* ============================================================
+       ACTIVE INDEX
+    ============================================================ */
+    function getActiveIndex() {
+        var path = window.location.href;
+        for (var i = 0; i < SUBCATS.length; i++) {
+            if (path.indexOf(SUBCATS[i].href) !== -1) return i;
+        }
+        return -1;
+    }
+
+    /* ============================================================
+       BUILD
+    ============================================================ */
+    function buildBar(container) {
+        if (document.getElementById(BAR_ID)) return;
+
+        /* Hide powered-by via JS too (belt + braces) */
+        var poweredBy = container.querySelector(".chip-container__powered-by");
+        if (poweredBy) poweredBy.style.display = "none";
+
+        var offset    = 0;
+        var activeIdx = getActiveIndex();
+
+        var bar = document.createElement("div");
+        bar.id  = BAR_ID;
+
+        var scroll = document.createElement("div");
+        scroll.id  = "ig-subcat-scroll";
+
+        SUBCATS.forEach(function (cat, i) {
+            var a         = document.createElement("a");
+            a.href        = cat.href;
+            a.textContent = cat.label;
+            if (i === activeIdx) a.classList.add("ig-subcat-active");
+            scroll.appendChild(a);
+        });
+
+        var links = scroll.querySelectorAll("a");
+
+        var btnLeft  = null;
+        var btnRight = null;
+
+        if (SHOW_ARROWS) {
+            btnLeft = document.createElement("div");
+            btnLeft.className = "ig-subcat-arrow ig-arr-disabled";
+            btnLeft.setAttribute("role", "button");
+            btnLeft.setAttribute("aria-label", "Previous categories");
+            btnLeft.innerHTML = "&#8249;";
+
+            btnRight = document.createElement("div");
+            btnRight.className = "ig-subcat-arrow";
+            btnRight.setAttribute("role", "button");
+            btnRight.setAttribute("aria-label", "Next categories");
+            btnRight.innerHTML = "&#8250;";
+        }
+
+        function renderVisible() {
+            links.forEach(function (a, i) {
+                a.style.display = (i >= offset && i < offset + VISIBLE)
+                    ? "inline-flex"
+                    : "none";
+            });
+
+            if (btnLeft && btnRight) {
+                if (offset <= 0) {
+                    btnLeft.classList.add("ig-arr-disabled");
+                } else {
+                    btnLeft.classList.remove("ig-arr-disabled");
+                }
+                if (offset + VISIBLE >= SUBCATS.length) {
+                    btnRight.classList.add("ig-arr-disabled");
+                } else {
+                    btnRight.classList.remove("ig-arr-disabled");
+                }
+            }
+        }
+
+        if (btnLeft) {
+            btnLeft.addEventListener("click", function () {
+                if (offset > 0) { offset -= 1; renderVisible(); }
+            });
+        }
+
+        if (btnRight) {
+            btnRight.addEventListener("click", function () {
+                if (offset + VISIBLE < SUBCATS.length) { offset += 1; renderVisible(); }
+            });
+        }
+
+        if (btnLeft)  bar.appendChild(btnLeft);
+        bar.appendChild(scroll);
+        if (btnRight) bar.appendChild(btnRight);
+
+        /* Insert RIGHT where powered-by was — before .chip-container__combined */
+        var combined = container.querySelector(".chip-container__combined");
+        if (combined) {
+            container.insertBefore(bar, combined);
+        } else {
+            container.insertBefore(bar, container.firstChild);
+        }
+
+        renderVisible();
+    }
+
+    /* ============================================================
+       RETRY — Adobe Target async guard
+    ============================================================ */
+    var _retryCount   = 0;
+    var MAX_RETRIES   = 40;
+    var RETRY_DELAY   = 100;
+    var _retryTimeout = null;
+
+    function tryMount() {
+        var container = document.querySelector(".chip-container");
+        if (container) {
+            injectStyles();
+            buildBar(container);
+            return;
+        }
+        _retryCount += 1;
+        if (_retryCount >= MAX_RETRIES) return;
+        _retryTimeout = setTimeout(tryMount, RETRY_DELAY);
+    }
+
+    /* ============================================================
+       INIT
+    ============================================================ */
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", tryMount);
+    } else {
+        tryMount();
+    }
+
+})();
