@@ -1,229 +1,215 @@
-<script>
-    (function() {
-        "use strict";
+(function() {
+    "use strict";
 
-        var TIMER_ID = "ig-deal-timer";
-        var STYLE_ID = "ig-deal-timer-styles";
-        var STORAGE_KEY = "ig_deal_timer_start";
-        var DURATION_MS = 12 * 60 * 60 * 1000;
-        var MAX_RETRIES = 40;
-        var RETRY_DELAY = 100;
+    var TIMER_ID = "ig-deal-timer";
+    var STYLE_ID = "ig-deal-timer-styles";
+    var STORAGE_KEY = "ig_deal_timer_start";
+    var DURATION_MS = 12 * 60 * 60 * 1000;
+    var MAX_RETRIES = 40;
+    var RETRY_DELAY = 100;
 
-        var _tickInterval = null;
-        var _retryTimeout = null;
-        var _retryCount = 0;
-        var _mounted = false;
+    var _tickInterval = null;
+    var _retryTimeout = null;
+    var _retryCount = 0;
+    var _mounted = false;
 
-        /* ============================================================
-           STYLES
-        ============================================================ */
-        function injectStyles() {
-            if (document.getElementById(STYLE_ID)) return;
-            var s = document.createElement("style");
-            s.id = STYLE_ID;
-            s.textContent = [
-                "#ig-deal-timer-wrap {",
-                "  position: fixed;",
-                "  bottom: 88px;",
-                "  left: 0;",
-                "  right: 0;",
-                "  z-index: 9998;",
-                "  display: flex;",
-                "  align-items: flex-end;",
-                "  pointer-events: none;",
-                "  padding-bottom: 6px;",
-                "}",
+    function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        var s = document.createElement("style");
+        s.id = STYLE_ID;
+        s.textContent = [
+            /* Wrap is absolute inside nav parent —
+               zero impact on surrounding layout */
+            "#ig-deal-timer-wrap {",
+            "  position: absolute;",
+            "  z-index: 9999;",
+            "  pointer-events: none;",
+            "  white-space: nowrap;",
+            "}",
 
-                "#ig-deal-timer {",
-                "  display: inline-flex;",
-                "  align-items: center;",
-                "  gap: 6px;",
-                "  background: #1a7a3a;",
-                "  color: #fff;",
-                "  font-family: var(--font-family-poppins-medium, sans-serif);",
-                "  font-size: 12px;",
-                "  font-weight: 600;",
-                "  padding: 7px 14px;",
-                "  border-radius: 999px;",
-                "  box-shadow: 0 2px 12px rgba(0,0,0,0.35);",
-                "  white-space: nowrap;",
-                "  pointer-events: auto;",
-                "  letter-spacing: 0.01em;",
-                "}",
+            /* Rectangle badge — no dot, no pill */
+            "#ig-deal-timer {",
+            "  display: inline-flex;",
+            "  align-items: center;",
+            "  background: #1a7a3a;",
+            "  color: #fff;",
+            "  font-family: var(--font-family-poppins-medium, sans-serif);",
+            "  font-size: 9px;",
+            "  font-weight: 600;",
+            "  padding: 2px 5px;",
+            "  border-radius: 3px;",
+            "  box-shadow: 0 1px 4px rgba(0,0,0,0.3);",
+            "  letter-spacing: 0.01em;",
+            "  pointer-events: none;",
+            "}"
+        ].join("\n");
+        document.head.appendChild(s);
+    }
 
-                "#ig-deal-timer .ig-timer-dot {",
-                "  width: 7px;",
-                "  height: 7px;",
-                "  border-radius: 50%;",
-                "  background: #7dffaa;",
-                "  flex-shrink: 0;",
-                "  animation: ig-dot-pulse 1s ease-in-out infinite alternate;",
-                "}",
-
-                "@keyframes ig-dot-pulse {",
-                "  from { opacity: 0.4; transform: scale(0.8); }",
-                "  to   { opacity: 1;   transform: scale(1.2); }",
-                "}"
-            ].join("\n");
-            document.head.appendChild(s);
-        }
-
-        /* ============================================================
-           TIMER LOGIC
-        ============================================================ */
-        function getStartTime() {
-            try {
-                var stored = localStorage.getItem(STORAGE_KEY);
-                var now = Date.now();
-                if (stored) {
-                    var start = parseInt(stored, 10);
-                    if (!isNaN(start) && now - start < DURATION_MS) {
-                        return start;
-                    }
-                }
-                localStorage.setItem(STORAGE_KEY, String(now));
-                return now;
-            } catch (e) {
-                return Date.now();
+    /* ============================================================
+       TIMER LOGIC — unchanged
+    ============================================================ */
+    function getStartTime() {
+        try {
+            var stored = localStorage.getItem(STORAGE_KEY);
+            var now = Date.now();
+            if (stored) {
+                var start = parseInt(stored, 10);
+                if (!isNaN(start) && now - start < DURATION_MS) return start;
             }
+            localStorage.setItem(STORAGE_KEY, String(now));
+            return now;
+        } catch (e) {
+            return Date.now();
+        }
+    }
+
+    function getRemainingMs() {
+        var elapsed = Date.now() - getStartTime();
+        var remaining = DURATION_MS - elapsed;
+        return remaining > 0 ? remaining : 0;
+    }
+
+    function formatTime(ms) {
+        var totalSec = Math.floor(ms / 1000);
+        var hours   = Math.floor(totalSec / 3600);
+        var minutes = Math.floor((totalSec % 3600) / 60);
+        var parts = [];
+        if (hours   > 0) parts.push(hours   + "hr");
+        if (minutes > 0) parts.push(minutes + "min");
+        if (parts.length === 0) parts.push("< 1min");
+        return parts.join(" ") + " left";
+    }
+
+    function tick() {
+        var countEl = document.getElementById(TIMER_ID + "-count");
+        if (!countEl) { destroy(); return; }
+        var remaining = getRemainingMs();
+        if (remaining <= 0) {
+            try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch (e) {}
+            remaining = DURATION_MS;
+        }
+        countEl.textContent = formatTime(remaining);
+    }
+
+    /* ============================================================
+       POSITION — floats above Deals icon, never shifts layout
+    ============================================================ */
+    function positionAboveDeals() {
+        var wrap    = document.getElementById(TIMER_ID + "-wrap");
+        var dealsEl = document.getElementById("ig-nav-deals");
+        var badge   = document.getElementById(TIMER_ID);
+        if (!wrap || !dealsEl || !badge) return;
+
+        /* Coords of Deals icon relative to its positioned nav parent */
+        var navParent  = wrap.parentNode;
+        var parentRect = navParent.getBoundingClientRect();
+        var dealsRect  = dealsEl.getBoundingClientRect();
+        var badgeW     = badge.offsetWidth;
+        var badgeH     = badge.offsetHeight;
+
+        /* Center badge horizontally over Deals icon */
+        var left = (dealsRect.left - parentRect.left)
+                 + (dealsRect.width  / 2)
+                 - (badgeW / 2);
+
+        /* Sit badge just above the top of the Deals icon — no gap */
+        var top = (dealsRect.top - parentRect.top) - badgeH + 1;
+
+//  clamp so it never goes too high
+top = Math.max(-2, top);
+
+wrap.style.top = top + "px";
+
+
+        /* Clamp within viewport */
+        left = Math.max(0, Math.min(left, window.innerWidth - badgeW));
+
+        wrap.style.left = left + "px";
+        wrap.style.top  = top  + "px";
+    }
+
+    /* ============================================================
+       BUILD
+    ============================================================ */
+    function buildTimer() {
+        if (document.getElementById(TIMER_ID + "-wrap")) return;
+
+        var dealsEl   = document.getElementById("ig-nav-deals");
+        var navParent = dealsEl.parentNode;
+
+        /* Make parent the positioning context without touching
+           its display/flex — only set if not already positioned */
+        var parentPos = window.getComputedStyle(navParent).position;
+        if (parentPos === "static") {
+            navParent.style.position = "relative";
         }
 
-        function getRemainingMs() {
-            var elapsed = Date.now() - getStartTime();
-            var remaining = DURATION_MS - elapsed;
-            return remaining > 0 ? remaining : 0;
+        var wrap = document.createElement("div");
+        wrap.id  = TIMER_ID + "-wrap";
+
+        /* Rectangle badge — dot removed */
+        var badge = document.createElement("div");
+        badge.id  = TIMER_ID;
+
+        var count = document.createElement("span");
+        count.id  = TIMER_ID + "-count";
+        count.textContent = formatTime(getRemainingMs());
+
+        badge.appendChild(count);
+        wrap.appendChild(badge);
+
+        /* Append to nav parent — absolutely positioned so it
+           never participates in flex/grid flow */
+        navParent.appendChild(wrap);
+
+        /* Two rAF so layout is fully measured before positioning */
+        requestAnimationFrame(function() {
+            requestAnimationFrame(positionAboveDeals);
+        });
+
+        window.addEventListener("resize", positionAboveDeals);
+
+        _tickInterval = setInterval(tick, 1000);
+        _mounted = true;
+    }
+
+    /* ============================================================
+       DESTROY
+    ============================================================ */
+    function destroy() {
+        if (_tickInterval) { clearInterval(_tickInterval);  _tickInterval = null; }
+        if (_retryTimeout) { clearTimeout(_retryTimeout);   _retryTimeout = null; }
+        window.removeEventListener("resize", positionAboveDeals);
+        var wrap  = document.getElementById(TIMER_ID + "-wrap");
+        if (wrap  && wrap.parentNode)  wrap.parentNode.removeChild(wrap);
+        var style = document.getElementById(STYLE_ID);
+        if (style && style.parentNode) style.parentNode.removeChild(style);
+        _mounted = false;
+    }
+
+    /* ============================================================
+       RETRY
+    ============================================================ */
+    function tryMount() {
+        if (_mounted) return;
+        if (document.getElementById("ig-nav-deals")) {
+            injectStyles();
+            buildTimer();
+            return;
         }
+        _retryCount += 1;
+        if (_retryCount >= MAX_RETRIES) return;
+        _retryTimeout = setTimeout(tryMount, RETRY_DELAY);
+    }
 
-        function formatTime(ms) {
-            var totalSec = Math.floor(ms / 1000);
-            var hours = Math.floor(totalSec / 3600);
-            var minutes = Math.floor((totalSec % 3600) / 60);
-            var parts = [];
-            if (hours > 0) parts.push(hours + "hr");
-            if (minutes > 0) parts.push(minutes + "min");
-            if (parts.length === 0) parts.push("< 1min");
-            return parts.join(" ") + " left";
-        }
+    /* ============================================================
+       INIT
+    ============================================================ */
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", tryMount);
+    } else {
+        tryMount();
+    }
 
-        function tick() {
-            var countEl = document.getElementById(TIMER_ID + "-count");
-            if (!countEl) {
-                destroy();
-                return;
-            }
-            var remaining = getRemainingMs();
-            if (remaining <= 0) {
-                try {
-                    localStorage.setItem(STORAGE_KEY, String(Date.now()));
-                } catch (e) {}
-                remaining = DURATION_MS;
-            }
-            countEl.textContent = formatTime(remaining);
-        }
-
-        /* ============================================================
-           POSITION: centered above Deals nav item
-        ============================================================ */
-        function positionAboveDeals() {
-            var wrap = document.getElementById(TIMER_ID + "-wrap");
-            var dealsEl = document.getElementById("ig-nav-deals");
-            var pill = document.getElementById(TIMER_ID);
-            if (!wrap || !dealsEl || !pill) return;
-
-            var rect = dealsEl.getBoundingClientRect();
-            var pillW = pill.offsetWidth;
-            var centerX = rect.left + rect.width / 2;
-            var pillLeft = centerX - pillW / 2;
-
-            pillLeft = Math.max(8, Math.min(pillLeft, window.innerWidth - pillW - 8));
-
-            wrap.style.justifyContent = "flex-start";
-            wrap.style.paddingLeft = pillLeft + "px";
-        }
-
-        /* ============================================================
-           BUILD
-        ============================================================ */
-        function buildTimer() {
-            if (document.getElementById(TIMER_ID + "-wrap")) return;
-
-            var wrap = document.createElement("div");
-            wrap.id = TIMER_ID + "-wrap";
-
-            var pill = document.createElement("div");
-            pill.id = TIMER_ID;
-
-            var dot = document.createElement("span");
-            dot.className = "ig-timer-dot";
-
-            var count = document.createElement("span");
-            count.id = TIMER_ID + "-count";
-            count.textContent = formatTime(getRemainingMs());
-
-            pill.appendChild(dot);
-            pill.appendChild(count);
-            wrap.appendChild(pill);
-            document.body.appendChild(wrap);
-
-            requestAnimationFrame(function() {
-                requestAnimationFrame(positionAboveDeals);
-            });
-
-            window.addEventListener("resize", positionAboveDeals);
-
-            _tickInterval = setInterval(tick, 1000);
-            _mounted = true;
-        }
-
-        /* ============================================================
-           DESTROY — clean up all refs and listeners
-        ============================================================ */
-        function destroy() {
-            if (_tickInterval) {
-                clearInterval(_tickInterval);
-                _tickInterval = null;
-            }
-            if (_retryTimeout) {
-                clearTimeout(_retryTimeout);
-                _retryTimeout = null;
-            }
-            window.removeEventListener("resize", positionAboveDeals);
-            var wrap = document.getElementById(TIMER_ID + "-wrap");
-            if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
-            var style = document.getElementById(STYLE_ID);
-            if (style && style.parentNode) style.parentNode.removeChild(style);
-            _mounted = false;
-        }
-
-        /* ============================================================
-           RETRY — waits for Adobe Target to render nav, max 40 tries
-        ============================================================ */
-        function tryMount() {
-            if (_mounted) return;
-
-            if (document.getElementById("ig-nav-deals")) {
-                injectStyles();
-                buildTimer();
-                return;
-            }
-
-            _retryCount += 1;
-            if (_retryCount >= MAX_RETRIES) {
-                // Gave up cleanly — no leak, no error thrown
-                return;
-            }
-
-            _retryTimeout = setTimeout(tryMount, RETRY_DELAY);
-        }
-
-        /* ============================================================
-           INIT
-        ============================================================ */
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", tryMount);
-        } else {
-            tryMount();
-        }
-
-    })();
-</script>
+})();
