@@ -1,0 +1,104 @@
+
+(function () {
+  "use strict";
+
+  function injectStepIndicator() {
+    var container = document.querySelector(".cab-bookingmf-container");
+    if (!container) return;
+
+    /* ── 1. Change only the heading text ── */
+    var headingP = container.querySelector(".banner-text p");
+    if (headingP) {
+      headingP.innerHTML = 'One more step to go&#8230;';
+    }
+
+    /* ── 2. Inject styles ── */
+    var style = document.createElement("style");
+    style.textContent = [
+      ".ig-step-indicator{display:flex;gap:6px;align-items:flex-start;justify-content:center;width:518px;box-sizing:border-box;}",
+      ".ig-step{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;}",
+      ".ig-step__row{display:flex;align-items:center;margin-bottom:12px!important;margin-right:auto!important;}",
+      ".ig-step__icon{width:18px;height:18px;flex-shrink:0;display:block;}",
+      ".ig-step__icon--done{filter:invert(52%) sepia(80%) saturate(450%) hue-rotate(105deg) brightness(92%);}",
+      ".ig-step__icon--active{filter:invert(38%) sepia(95%) saturate(550%) hue-rotate(195deg) brightness(110%);}",
+      ".ig-step__label{font-size:21px;font-weight:400;white-space:nowrap;color:#fff;letter-spacing:0.01em;font-family: var(--font-family-poppins-regular)!important;}",
+      ".ig-step__label--active{color:#fff;}",
+      ".ig-step__bar-track{width:180px;max-width:100%;height:8px;border-radius:4px;background:rgba(255,255,255,0.2);overflow:hidden;}",
+      ".ig-step__bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}",
+      ".ig-step__bar-fill--done{width:100%;background: var(--Green, rgba(127, 210, 135, 1));}",
+      ".ig-step__bar-fill--active{width:100%;background: var(--Color-Text-Bright-Blue, rgba(0, 174, 229, 1));animation:ig-pulse .9s ease-in-out infinite alternate;}",
+     
+    ].join("");
+    document.head.appendChild(style);
+
+    /* ── 3. Step data ── */
+    var steps = [
+      {
+        label: "Booked flight",
+        done: true,
+        img: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/circle-check.svg",
+      },
+      {
+        label: "Web check-in",
+        done: true,
+        img: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/circle-check.svg",
+      },
+      {
+        label: "Book Cab",
+        done: false,
+        img: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/circle.svg",
+      },
+    ];
+
+    /* ── 4. Build indicator DOM ── */
+    var indicator = document.createElement("div");
+    indicator.className = "ig-step-indicator";
+
+    steps.forEach(function (s) {
+      var isActive = !s.done;
+
+      var stepEl = document.createElement("div");
+      stepEl.className = "ig-step";
+
+      var row = document.createElement("div");
+      row.className = "ig-step__row";
+
+      var img = document.createElement("img");
+      img.src = s.img;
+      img.alt = s.label;
+      img.className = "ig-step__icon " + (s.done ? "ig-step__icon--done" : "ig-step__icon--active");
+
+      var label = document.createElement("span");
+      label.className = "ig-step__label" + (isActive ? " ig-step__label--active" : "");
+      label.textContent = s.label;
+
+      row.appendChild(img);
+      row.appendChild(label);
+
+      var track = document.createElement("div");
+      track.className = "ig-step__bar-track";
+
+      var fill = document.createElement("div");
+      fill.className = "ig-step__bar-fill " + (s.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
+
+      track.appendChild(fill);
+      stepEl.appendChild(row);
+      stepEl.appendChild(track);
+      indicator.appendChild(stepEl);
+    });
+
+    /* ── 5. Insert ABOVE the heading ── */
+    var heading = container.querySelector(".banner-text");
+    if (heading) {
+      container.insertBefore(indicator, heading);
+    } else {
+      container.insertBefore(indicator, container.firstChild);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", injectStepIndicator);
+  } else {
+    injectStepIndicator();
+  }
+})();
