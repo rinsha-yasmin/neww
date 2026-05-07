@@ -1,20 +1,152 @@
+# RotatingOfferstrip.js — Code Review (Functionality Issues)
 
-(function() {
-    if (document.getElementById("offer-rotator")) return;
+## Issues & Solutions
 
-    const style = document.createElement("style");
-    style.textContent = `
+---
+
+### Issue 1: Scroll Logic Does Not Re-Show Bar When Scrolling Up Above 50px (Lines 107–115)
+
+**Lines:** 107–115  
+**Code:**
+```js
+if (currentScroll <= 0) {
+    offerBar.classList.remove("hidden");
+    document.body.classList.remove('offer-bar-hidden');
+} else if (currentScroll > lastScroll && currentScroll > 50) {
+    offerBar.classList.add("hidden");
+    document.body.classList.add('offer-bar-hidden');
+} else if (currentScroll < lastScroll && currentScroll <= 50) {
+    offerBar.classList.remove("hidden");
+    document.body.classList.remove('offer-bar-hidden');
+}
+```
+
+**Problem:** The bar is only re-shown when scrolling **up AND** scroll position is ≤ 50px. If the user scrolls down 500px then scrolls back up to 200px, the bar stays hidden. For a "show on scroll up" pattern, the bar should reappear on any upward scroll.
+
+**Solution:** Remove the `&& currentScroll <= 50` restriction:
+```js
+if (currentScroll <= 0) {
+    offerBar.classList.remove("hidden");
+    document.body.classList.remove('offer-bar-hidden');
+} else if (currentScroll > lastScroll && currentScroll > 50) {
+    offerBar.classList.add("hidden");
+    document.body.classList.add('offer-bar-hidden');
+} else if (currentScroll < lastScroll) {
+    offerBar.classList.remove("hidden");
+    document.body.classList.remove('offer-bar-hidden');
+}
+```
+
+---
+
+### Issue 2: No Cleanup / Teardown — Memory Leak in SPA (Lines 121–128)
+
+**Lines:** 121–128  
+**Code:**
+```js
+window.addEventListener("scroll", function() { ... });
+window.addEventListener("resize", function() { ... });
+```
+
+**Problem:** Event listeners are added with anonymous functions and never removed. If this script runs in a Single Page Application where the page/component is destroyed and re-created, orphaned listeners accumulate causing memory leaks and duplicate scroll handling.
+
+**Solution:** Use named functions and expose a destroy method:
+```js
+const scrollHandler = function() {
+    if (!ticking) {
+        window.requestAnimationFrame(handleScroll);
+        ticking = true;
+    }
+};
+const resizeHandler = function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(updateOfferBarHeight, 250);
+};
+window.addEventListener("scroll", scrollHandler);
+window.addEventListener("resize", resizeHandler);
+
+window.__offerRotatorDestroy = function() {
+    window.removeEventListener("scroll", scrollHandler);
+    window.removeEventListener("resize", resizeHandler);
+    offerBar.remove();
+    document.body.classList.remove('has-offer-bar', 'offer-bar-hidden');
+};
+```
+
+---
+
+### Issue 3: `document.body` Null Reference Crash (Line 91)
+
+**Line:** 91  
+**Code:**
+```js
+document.body.classList.add('has-offer-bar');
+```
+
+**Problem:** Line 89 uses `document.body || document.documentElement` as a fallback, acknowledging that `document.body` could be `null` (e.g., if the script runs in `<head>` before the body exists). But line 91 accesses `document.body.classList` directly — this will throw a `TypeError` if `document.body` is indeed `null`.
+
+**Solution:** Guard the call or ensure the script only runs after the DOM is ready:
+```js
+// Option A: Guard
+if (document.body) {
+    document.body.classList.add('has-offer-bar');
+}
+
+// Option B: Wrap entire IIFE in DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() { ... });
+```
+
+---
+
+### Issue 4: Header Position Not Restored on Scroll Up (Lines 35–42)
+
+**Lines:** 35–42  
+**Code:**
+```css
+body.has-offer-bar .headerv2.fixed-top,
+body.has-offer-bar .headerv2 {
+    top: var(--offer-bar-height, 32px) !important;
+}
+
+body.has-offer-bar.offer-bar-hidden .headerv2.fixed-top,
+body.has-offer-bar.offer-bar-hidden .headerv2 {
+    top: 0 !important;
+}
+```
+
+**Problem:** Combined with Issue 1 — since the bar doesn't re-show on scroll up above 50px, the `offer-bar-hidden` class stays on the body. This means `.headerv2` stays at `top: 0` even when the offer bar should be visible again, causing the header and offer bar to overlap.
+
+**Solution:** Fixing Issue 1 (the scroll logic) resolves this automatically. The header's `top` value will correctly toggle as the bar shows/hides.
+
+---
+
+## Summary Table
+
+| # | Line(s) | Severity | Description |
+|---|---------|----------|-------------|
+| 1 | 107–115 | High | Bar never re-appears on scroll-up when page offset > 50px |
+| 2 | 121–128 | Medium | Memory leak — listeners never removed in SPA contexts |
+| 3 | 91 | Medium | Potential `TypeError` crash if `document.body` is null |
+| 4 | 35–42 | High | Header overlaps offer bar due to stale `offer-bar-hidden` class (caused by #1) |
+
+
+
+    (function() {
+        if (document.getElementById("offer-rotator")) return;
+
+        const style = document.createElement("style");
+        style.textContent = `
         #offer-rotator {
             width: 100%;
             background: #000099;
-            padding: 4px 0;
+            padding: 7px 0;
             color: #fff;
             position: fixed;
             top: 0;
             left: 0;
             z-index: 1031;
             font-size: 14px;
-			  font-family: var(--font-family-bauhuas-std-medium);
+            font-family: var(--font-family-bauhuas-std-medium);
             font-weight: 500;
             display: block;
             transition: transform 0.3s ease;
@@ -51,7 +183,7 @@
         }
 
         .offer-track span {
-            padding: 0 80px;
+            padding: 0 40px;
         }
 
         @keyframes ticker-scroll {
@@ -62,7 +194,7 @@
         @media (max-width: 768px) {
             #offer-rotator {
                 font-size: 12px;
-                padding: 3px 0;
+                padding: 5px 0;
             }
             body.has-offer-bar {
                 --offer-bar-height: 23px;
@@ -78,59 +210,59 @@
             }
         }
     `;
-    document.head.appendChild(style);
+        document.head.appendChild(style);
 
-    const offerBar = document.createElement("div");
-    offerBar.id = "offer-rotator";
+        const offerBar = document.createElement("div");
+        offerBar.id = "offer-rotator";
 
-    const text = "&#x26A1; BUY BIG, SAVE BIGGER &#x26A1; 50% OFF* up to &#x20B9;1,250 (Code: SUMMER50) &#x26A1; 30% OFF* up to &#x20B9;45,000 (Code: FLAT30) &#x26A1; 25% OFF* on all activities (Code: FLAT25)";
+        const text = "&#x26A1; BUY BIG, SAVE BIGGER &#x26A1; 50% OFF* up to &#x20B9;1,250 (Code: SUMMER50) &#x26A1; 30% OFF* up to &#x20B9;45,000 (Code: FLAT30) &#x26A1; 25% OFF* on all activities (Code: FLAT25)";
 
-    // Two identical copies — when first copy scrolls out, second takes over seamlessly
-    // translateX(-50%) always lands at the exact start of copy 2, making it a perfect loop
-    offerBar.innerHTML = `<div class="offer-track"><span>${text}</span><span>${text}</span></div>`;
+        offerBar.innerHTML = '<div class="offer-track"><span>' + text + '</span><span>' + text + '</span></div>';
+        var target = document.body || document.documentElement;
+        target.insertBefore(offerBar, target.firstChild);
+        document.body.classList.add('has-offer-bar');
 
-    document.body.insertBefore(offerBar, document.body.firstChild);
-    document.body.classList.add('has-offer-bar');
-
-    function updateOfferBarHeight() {
-        const height = offerBar.offsetHeight;
-        document.documentElement.style.setProperty('--offer-bar-height', `${height}px`);
-    }
-
-    updateOfferBarHeight();
-
-    let lastScroll = 0;
-    let ticking = false;
-
-    function handleScroll() {
-        const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
-
-        if (currentScroll <= 0) {
-            offerBar.classList.remove("hidden");
-            document.body.classList.remove('offer-bar-hidden');
-        } else if (currentScroll > lastScroll && currentScroll > 50) {
-            offerBar.classList.add("hidden");
-            document.body.classList.add('offer-bar-hidden');
-        } else if (currentScroll < lastScroll && currentScroll <= 50) {
-            offerBar.classList.remove("hidden");
-            document.body.classList.remove('offer-bar-hidden');
+        function updateOfferBarHeight() {
+            const height = offerBar.offsetHeight;
+            document.documentElement.style.setProperty('--offer-bar-height', `${height}px`);
         }
 
-        lastScroll = currentScroll <= 0 ? 0 : currentScroll;
-        ticking = false;
-    }
+        updateOfferBarHeight();
 
-    window.addEventListener("scroll", function() {
-        if (!ticking) {
-            window.requestAnimationFrame(handleScroll);
-            ticking = true;
+        let lastScroll = 0;
+        let ticking = false;
+
+        function handleScroll() {
+            const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (currentScroll <= 0) {
+                offerBar.classList.remove("hidden");
+                document.body.classList.remove('offer-bar-hidden');
+            } else if (currentScroll > lastScroll && currentScroll > 50) {
+                offerBar.classList.add("hidden");
+                document.body.classList.add('offer-bar-hidden');
+            } else if (currentScroll < lastScroll && currentScroll <= 50) {
+                offerBar.classList.remove("hidden");
+                document.body.classList.remove('offer-bar-hidden');
+            }
+
+            lastScroll = currentScroll <= 0 ? 0 : currentScroll;
+            ticking = false;
         }
-    });
 
-    let resizeTimer;
-    window.addEventListener("resize", function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(updateOfferBarHeight, 250);
-    });
+        window.addEventListener("scroll", function() {
+            if (!ticking) {
+                window.requestAnimationFrame(handleScroll);
+                ticking = true;
+            }
+        });
 
-})();
+        let resizeTimer;
+        window.addEventListener("resize", function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(updateOfferBarHeight, 250);
+        });
+
+    })();
+
+
