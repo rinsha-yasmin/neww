@@ -1,0 +1,267 @@
+<script>
+    (function() {
+        "use strict";
+
+        /* ── Issue 4: unique ID per variant ── */
+        var WIDGET_ID = "stay-experience-widget-ss";
+        if (document.getElementById(WIDGET_ID)) return;
+
+        var inserted = false;
+
+        function createCard(data) {
+            var card = document.createElement("div");
+            card.className = "sew-card";
+
+            var imgWrap = document.createElement("div");
+            imgWrap.className = "sew-img-wrap";
+
+            var picture = document.createElement("picture");
+
+            /* ── Issue 7: use px consistently to match CSS breakpoint ── */
+            var sourceMobile = document.createElement("source");
+            sourceMobile.media = "(max-width: 768px)";
+            sourceMobile.srcset = data.mobileImg;
+
+            var sourceDesktop = document.createElement("source");
+            sourceDesktop.media = "(min-width: 769px)";
+            sourceDesktop.srcset = data.desktopImg;
+
+            var img = document.createElement("img");
+            img.className = "sew-img";
+            img.src = data.desktopImg;
+            img.alt = data.title;
+
+            picture.appendChild(sourceMobile);
+            picture.appendChild(sourceDesktop);
+            picture.appendChild(img);
+
+            var iconTop = document.createElement("div");
+            iconTop.className = "sew-icon-top";
+            var iconTopImg = document.createElement("img");
+            iconTopImg.src = data.topIcon;
+            iconTopImg.alt = "";
+            iconTop.appendChild(iconTopImg);
+
+            imgWrap.appendChild(picture);
+            imgWrap.appendChild(iconTop);
+
+            if (data.badge) {
+                var badge = document.createElement("div");
+                badge.className = "sew-badge";
+                badge.textContent = data.badge;
+                imgWrap.appendChild(badge);
+            }
+
+            var content = document.createElement("div");
+            content.className = "sew-content";
+
+            var cardTitle = document.createElement("div");
+            cardTitle.className = "sew-card-title";
+            cardTitle.textContent = data.title;
+
+            var row = document.createElement("div");
+            row.className = "sew-row";
+            var rowImg = document.createElement("img");
+            rowImg.src = data.rowIcon;
+            rowImg.alt = "";
+            var rowSpan = document.createElement("span");
+            rowSpan.textContent = data.subtitle;
+            row.appendChild(rowImg);
+            row.appendChild(rowSpan);
+
+            var divider = document.createElement("div");
+            divider.className = "sew-divider";
+
+            var bottom = document.createElement("div");
+            bottom.className = "sew-bottom";
+
+            var price = document.createElement("div");
+            price.className = "sew-price";
+            price.textContent = data.price;
+
+            var btn = document.createElement("a");
+            btn.href = data.link;
+            /* ── Issue 6: same-domain links use _self, external use _blank ── */
+            btn.target = data.target || "_self";
+            btn.rel = data.target === "_blank" ? "noopener noreferrer" : "";
+            btn.className = "sew-btn";
+            btn.setAttribute("aria-label", "Open " + data.title);
+            var btnImg = document.createElement("img");
+            btnImg.src = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_2.png?ui-ux=newui";
+            btnImg.alt = "";
+            btn.appendChild(btnImg);
+
+            bottom.appendChild(price);
+            bottom.appendChild(btn);
+
+            content.appendChild(cardTitle);
+            content.appendChild(row);
+            content.appendChild(divider);
+            content.appendChild(bottom);
+
+            card.appendChild(imgWrap);
+            card.appendChild(content);
+
+            return card;
+        }
+
+        var container = document.createElement("section");
+        /* ── Issue 4: use unique ID ── */
+        container.id = WIDGET_ID;
+
+        var wrapper = document.createElement("div");
+        wrapper.className = "sew-wrapper";
+
+        var title = document.createElement("h2");
+        title.className = "sew-title";
+        title.textContent = "Plan Your Next Stop";
+        /* ── Issue 5: empty span removed entirely ── */
+
+        var subtitle = document.createElement("p");
+        subtitle.className = "sew-subtitle";
+        subtitle.textContent = "Hotels, cabs and activities are still available for your trip dates";
+
+        var cards = document.createElement("div");
+        cards.className = "sew-cards";
+
+        var cardData = [{
+                title: "Hotels",
+                subtitle: "Upto 8 BluChips/₹100 Spent",
+                price: "Starting @ Rs.250",
+                desktopImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/hotels/edited_creative_M.png?ui-ux=newui",
+                mobileImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/hotels/edited_creative_W.png?ui-ux=newui",
+                topIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/Frame_3.png?ui-ux=newui",
+                rowIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/IndiGo%20BluChip.png?ui-ux=newui",
+                badge: "50% off",
+                link: "https://www.goindigo.in/hotels"
+            },
+            {
+                title: "Airport Transfer",
+                subtitle: "100% confirmed rides",
+                price: "Starting @ Rs.250",
+                desktopImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabs_cross_sell_A.jpg?ui-ux=newui",
+                mobileImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/cabs_cross_sell_A.png?ui-ux=newui",
+                topIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/Frame_2.png?ui-ux=newui",
+                rowIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/Vector%20(3).png?ui-ux=newui",
+                badge: "",
+                link: "https://www.goindigo.in/cabs"
+            },
+
+            {
+                title: "Shop",
+                subtitle: "Up to 40% Off + Free Shipping",
+                price: "Top Brands at Best Prices*",
+                desktopImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/edited_creative_shop.png?ui-ux=newui",
+                mobileImg: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/edited_creative-shopw.png?ui-ux=newui",
+                topIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/Frame_1.png?ui-ux=newui",
+                rowIcon: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Retail/Vector_B.png?ui-ux=newui",
+                badge: "Up to 40% Off ",
+                link: "https://www.goindigo.in/shop?linkNav=sightseeingheader"
+            }
+        ];
+
+
+        for (var i = 0; i < cardData.length; i++) {
+            cards.appendChild(createCard(cardData[i]));
+        }
+
+        wrapper.appendChild(title);
+        wrapper.appendChild(subtitle);
+        wrapper.appendChild(cards);
+        container.appendChild(wrapper);
+
+        var style = document.createElement("style");
+        style.textContent = [
+            "#stay-experience-widget-ss { color: #fff;margin-top: 0.75rem; }",
+            ".sew-wrapper { background: #1D1D1D; padding: 1.5rem !important; border-radius: 1rem; max-width: 60rem; }",
+            ".sew-title { font-size: 1.5rem; font-weight: 500; margin: 0; font-family:var(--font-family-bauhuas-std-medium); }",
+            ".sew-title-highlight { color: inherit; }",
+            ".sew-subtitle { font-size: 1rem; color: #EFEFEF; margin: 0.3rem 0 1.2rem !important; font-family:var(--font-family-bauhuas-std-medium);}",
+            ".sew-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }",
+            ".sew-card { background: #0d0f14; border-radius: 0.8rem; overflow: hidden; border: 0.05rem solid #7A85A0 !important; }",
+            ".sew-img-wrap { position: relative; }",
+            ".sew-img { width: 100%; height: 8rem; object-fit: cover; }",
+            ".sew-icon-top { position: absolute; top: 0.5rem; left: 0.5rem; width: 1.875rem; height: 1.875rem; border-radius: 50%; padding: 0.3rem; }",
+            ".sew-icon-top img { width: 1.875rem; height: 1.875rem; }",
+            ".sew-badge { position: absolute; top: 0.5rem; right: 0.5rem; background: #7FD287; color: #25304B; font-size: 0.75rem; padding: 0.35rem 0.5rem!important; border-radius: 2rem; font-weight: 500; }",
+            ".sew-content { padding: 0.8rem !important; }",
+            ".sew-card-title { font-size: 1rem; font-weight: 500; margin-bottom: 0.7rem !important; font-family: var(--font-family-poppins-medium);}",
+            ".sew-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #AFE4FF;     font-family: var(--font-family-poppins-medium);}",
+            ".sew-row img { width: 0.9rem; height: 0.9rem; }",
+            ".sew-divider { border-top: 0.05rem dashed rgba(255,255,255,0.2) !important; margin: 0.5rem 0!important;}",
+            ".sew-bottom { display: flex; justify-content: space-between; align-items: center; }",
+            ".sew-price { font-size: 0.875rem; font-weight: 300; color: #EFEFEF;font-family: var(--font-family-poppins-light); }",
+            ".sew-btn { width: 2rem; height: 2rem; background: #A97D0E !important; border-radius: 0.4rem; display: flex; align-items: center; justify-content: center; }",
+            ".sew-btn img { width: 9.9px; height: 9.9px; }",
+            "@media (max-width: 48rem) {",
+            "  #stay-experience-widget-ss { margin-bottom: 0.75rem;margin-top: 0.75rem; }",
+            ".sew-title { font-size: 1.25rem; }",
+            "  .sew-title-highlight { color: #4caf50; }",
+            ".sew-subtitle { font-size: 0.75rem;}",
+            "  .sew-wrapper { padding: 1.2rem !important; }",
+            "  .sew-cards { display: flex; flex-direction: column; gap: 0.8rem; }",
+            "  .sew-card { display: flex; padding: 0.6rem !important; align-items: center; gap: 0.8rem; overflow: visible; }",
+            "  .sew-img-wrap { position: relative; flex-shrink: 0; }",
+            "  .sew-img { width: 5.75rem; height: 5.75rem; border-radius: 0.6rem; display: block; }",
+            "  .sew-badge { position: absolute; top: 0.4rem; left: 0.4rem; right: auto; font-size: 0.65rem; padding: 0.25rem 0.4rem !important; }",
+            "  .sew-icon-top { display: none; }",
+            "  .sew-content { padding: 0 !important; flex: 1; }",
+            "  .sew-card-title { font-size: 0.75rem; margin-bottom: 0.2rem!important; }",
+            "  .sew-divider { margin: 0.4rem 0 !important; }",
+            "  .sew-btn { width: 2rem; height: 2rem; border-radius: 0.5rem; }",
+            "}"
+        ].join("\n");
+
+        /* ── Issue 3: styles injected only on successful insertion ── */
+        function insertAfterCabOffer(cont) {
+            if (inserted) return true;
+            try {
+                var target = document.querySelector(".bannerDescripton");
+                if (target && target.parentNode) {
+                    document.head.appendChild(style);
+                    target.insertAdjacentElement("afterend", cont);
+                    console.log('Element of widget to insert not found2');
+                    inserted = true;
+                    return true;
+                }
+            } catch (e) {
+                /* silent — malformed DOM edge case */
+            }
+            return false;
+        }
+
+        if (!insertAfterCabOffer(container)) {
+
+            /* ── Issue 1: observer declared BEFORE timeout so it's never undefined ── */
+            var observer = new MutationObserver(function() {
+                if (insertAfterCabOffer(container)) {
+                    clearTimeout(observerTimeout);
+                    observer.disconnect();
+                }
+            });
+
+            /* ── Issue 2: fallback insertion when banner never appears ── */
+            var observerTimeout = setTimeout(function() {
+                observer.disconnect();
+                if (!inserted) {
+                    var fallback = document.querySelector(".bookingActivity");
+document.querySelector(".bookingActivity")
+                    if (fallback && fallback.parentNode) {
+                        document.head.appendChild(style);
+                        console.log('Element of widget to insert not found2');
+                        // ✅ insert ABOVE bookingActivity
+                        fallback.parentNode.insertBefore(container, fallback);
+
+                        inserted = true;
+                    }
+                }
+            }, 5000);
+
+            observer.observe(document.body || document.documentElement, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+    })();
+</script>
