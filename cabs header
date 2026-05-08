@@ -4,10 +4,8 @@
 
         var STYLE_ID = "ig-cab-injector-styles";
         var INDICATOR_ID = "ig-step-indicator";
-        var PERKS_ID = "ig-perks-banner";
         var CAROUSEL_ID = "ig-perks-carousel";
-        var MAX_RETRIES = 40;
-        var RETRY_DELAY = 100;
+        var DOTS_ID = "ig-perks-dots";
         var CAROUSEL_INTERVAL = 3000;
 
         var _retryTimeout = null;
@@ -17,19 +15,19 @@
         var _carouselDots = [];
         var _mounted = false;
 
-        /* ============================================================
-           PERKS DATA — all icons as <img> URLs, zero emojis
-        ============================================================ */
+        var MAX_RETRIES = 40;
+        var RETRY_DELAY = 100;
+
         var PERKS = [{
-                iconUrl: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/car-side.svg",
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
                 text: "Reserve at just \u20B949."
             },
             {
-                iconUrl: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/shield-halved.svg",
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
                 text: "100% Confirmed rides"
             },
             {
-                iconUrl: "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/svgs/solid/calendar-check.svg",
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
                 text: "Free cancellation until pickup."
             }
         ];
@@ -49,52 +47,33 @@
                 /* ── Step Indicator ── */
                 "#" + INDICATOR_ID + " {",
                 "  display: flex; gap: 6px; align-items: flex-start;",
-                "  justify-content: center; width: 518px;",
+                "  justify-content: center; width: 100%;",
                 "  box-sizing: border-box; margin-bottom: 8px;",
                 "}",
                 ".ig-step { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }",
                 ".ig-step__row { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; width: 100%; }",
-                ".ig-step__icon { width: 18px; height: 18px; flex-shrink: 0; display: block; }",
+                ".ig-step__icon { width: 32px; height: 32px; flex-shrink: 0; display: block; }",
                 ".ig-step__icon--done { filter: invert(52%) sepia(80%) saturate(450%) hue-rotate(105deg) brightness(92%); }",
                 ".ig-step__icon--active { filter: invert(38%) sepia(95%) saturate(550%) hue-rotate(195deg) brightness(110%); }",
-                ".ig-step__label { font-size: 14px; font-weight: 400; white-space: nowrap; color: #fff; letter-spacing: 0.01em; font-family: var(--font-family-poppins-regular, sans-serif); }",
-                ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden;margin-top: 13px !important;}",
+                ".ig-step__label { font-size: 11px; font-weight: 400; white-space: nowrap; color: #fff; letter-spacing: 0.01em; font-family: var(--font-family-poppins-regular, sans-serif); }",
+                ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden; margin-top: 13px !important; }",
                 ".ig-step__bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease; width: 100%; }",
                 ".ig-step__bar-fill--done { background: rgba(127,210,135,1); }",
                 ".ig-step__bar-fill--active { background: rgba(0,174,229,1); animation: ig-pulse .9s ease-in-out infinite alternate; }",
                 "@keyframes ig-pulse { from { opacity: 1; } to { opacity: 0.55; } }",
 
-                /* ── Perk icon inside banner/carousel ── */
+                /* ── Perk icon ── */
                 ".ig-perk-icon {",
                 "  width: 18px; height: 18px; flex-shrink: 0; display: block;",
-                "  filter: invert(38%) sepia(95%) saturate(550%) hue-rotate(195deg) brightness(110%);",
+                "  filter: invert(10%) sepia(30%) saturate(800%) hue-rotate(195deg) brightness(60%);",
                 "}",
 
-                /* ── Perks Banner — Desktop ── */
-                "#" + PERKS_ID + " {",
-                "  display: flex; align-items: center; justify-content: center;",
-                "  background: rgba(175, 228, 255, 1); border: none;",
-                "  border-radius: 8px; padding: 10px 16px; gap: 0;",
-                "  width: 100%; box-sizing: border-box; margin-bottom: 16px;",
-                "}",
-                ".ig-perk-item {",
-                "  display: flex; align-items: center; gap: 8px; flex: 1;",
-                "  justify-content: center; color: #00AEE5;",
-                "  font-family: var(--font-family-poppins-regular, sans-serif);",
-                "  font-size: 13px; font-weight: 500; white-space: nowrap;",
-                "}",
-                ".ig-perk-divider {",
-                "  width: 1px; height: 24px; background: rgba(0,174,229,0.4);",
-                "  flex-shrink: 0; margin: 0 8px;",
-                "}",
-
-                /* ── Perks Carousel — Mobile ── */
+                /* ── Carousel ── */
                 "#" + CAROUSEL_ID + " {",
-                "  display: none;",
-                "  background: rgba(0,174,229,0.18); border: 1px solid rgba(0,174,229,0.35);",
-                "  border-radius: 8px; padding: 10px 16px;",
-                "  width: 100%; box-sizing: border-box; margin-bottom: 16px;",
-                "  flex-direction: column; align-items: center; gap: 8px;",
+                "  background: rgba(175, 228, 255, 1); border: none;",
+                "  border-radius: 8px; padding: 16px 16px;",
+                "  width: 100%; box-sizing: border-box;",
+                "  display: flex; flex-direction: column; align-items: center;",
                 "}",
                 ".ig-carousel-track { overflow: hidden; width: 100%; display: block; }",
                 ".ig-carousel-slides {",
@@ -104,26 +83,27 @@
                 ".ig-carousel-slide {",
                 "  min-width: 100%; display: flex; align-items: center;",
                 "  justify-content: center; gap: 8px;",
-                "  color: #00AEE5;",
-                "  font-family: var(--font-family-poppins-regular, sans-serif);",
+                "  color: rgba(13, 13, 13, 1);",
+                "  font-family:var(--font-family-poppins-medium)!important;",
                 "  font-size: 13px; font-weight: 500;",
                 "}",
-                ".ig-carousel-dots {display: flex; justify-content: center; align-items: center; gap: 5px;width: 100%;margin-top: 8px;}",
+
+                /* ── Dots — outside carousel, below it ── */
+                "#" + DOTS_ID + " {",
+                "  display: flex; justify-content: center; align-items: center; gap: 5px;",
+                "  width: 100%; padding: 15px 16px;",
+                // "  background: rgba(175, 228, 255, 1);",
+                "  border-radius: 8px;",
+                "  box-sizing: border-box;",
+               
+                "}",
                 ".ig-carousel-dot {",
-                "  width: 6px; height: 6px; border-radius: 50%;",
-                "  background: rgba(0,174,229,0.3); cursor: pointer;",
+                "  width: 8px; height: 8px; border-radius: 50%;",
+                "  background:rgba(255, 255, 255, 1); cursor: pointer;",
                 "  transition: all 0.3s ease; border: none; padding: 0; outline: none;",
                 "}",
                 ".ig-carousel-dot--active {",
-                "  background: rgba(0,174,229,1); width: 18px; border-radius: 3px;",
-                "}",
-
-                /* ── Responsive ── */
-                "@media (max-width: 767px) {",
-                "  #" + PERKS_ID + " { display: none !important; }",
-                "  #" + CAROUSEL_ID + " { display: flex !important; }",
-                "  #" + INDICATOR_ID + " { width: 100%; }",
-                "  .ig-step__label { font-size: 11px; }",
+                "  background: rgba(169, 125, 14, 1); width: 28px; height:8px; border-radius: 6px;",
                 "}"
 
             ].join("\n");
@@ -131,7 +111,7 @@
         }
 
         /* ============================================================
-           HELPERS — create <img> perk icon
+           HELPERS
         ============================================================ */
         function makePerkIcon(url, altText) {
             var img = document.createElement("img");
@@ -170,41 +150,15 @@
         }
 
         /* ============================================================
-           BUILD — Desktop Perks Banner
-        ============================================================ */
-        function buildPerksBanner() {
-            var banner = document.createElement("div");
-            banner.id = PERKS_ID;
-
-            PERKS.forEach(function(perk, i) {
-                var item = document.createElement("div");
-                item.className = "ig-perk-item";
-                item.appendChild(makePerkIcon(perk.iconUrl, perk.text));
-                var span = document.createElement("span");
-                span.textContent = perk.text;
-                item.appendChild(span);
-                banner.appendChild(item);
-
-                if (i < PERKS.length - 1) {
-                    var divider = document.createElement("div");
-                    divider.className = "ig-perk-divider";
-                    banner.appendChild(divider);
-                }
-            });
-
-            return banner;
-        }
-
-        /* ============================================================
-           BUILD — Mobile Perks Carousel
+           BUILD — Carousel (mobile only)
         ============================================================ */
         function buildPerksCarousel() {
             _carouselDots = [];
 
+            /* Carousel */
             var carousel = document.createElement("div");
             carousel.id = CAROUSEL_ID;
 
-            /* Track */
             var track = document.createElement("div");
             track.className = "ig-carousel-track";
 
@@ -224,27 +178,6 @@
 
             track.appendChild(slidesWrap);
             carousel.appendChild(track);
-
-            /* Dots */
-            var dotsWrap = document.createElement("div");
-            dotsWrap.className = "ig-carousel-dots";
-
-            PERKS.forEach(function(_, i) {
-                var dot = document.createElement("button");
-                dot.className = "ig-carousel-dot" + (i === 0 ? " ig-carousel-dot--active" : "");
-                dot.setAttribute("aria-label", "Slide " + (i + 1));
-                (function(idx) {
-                    dot.addEventListener("click", function() {
-                        goToSlide(idx);
-                        stopCarousel();
-                        startCarousel();
-                    });
-                })(i);
-                _carouselDots.push(dot);
-                dotsWrap.appendChild(dot);
-            });
-
-            carousel.appendChild(dotsWrap);
 
             /* Touch swipe */
             var touchStartX = 0;
@@ -268,7 +201,30 @@
                 passive: true
             });
 
-            return carousel;
+            /* Dots — separate element, inserted right after carousel */
+            var dotsWrap = document.createElement("div");
+            dotsWrap.id = DOTS_ID;
+
+            PERKS.forEach(function(_, i) {
+                var dot = document.createElement("button");
+                dot.className = "ig-carousel-dot" + (i === 0 ? " ig-carousel-dot--active" : "");
+                dot.setAttribute("aria-label", "Slide " + (i + 1));
+                (function(idx) {
+                    dot.addEventListener("click", function() {
+                        goToSlide(idx);
+                        stopCarousel();
+                        startCarousel();
+                    });
+                })(i);
+                _carouselDots.push(dot);
+                dotsWrap.appendChild(dot);
+            });
+
+            /* Return both as an object — caller inserts them separately */
+            return {
+                carousel: carousel,
+                dots: dotsWrap
+            };
         }
 
         /* ============================================================
@@ -363,25 +319,26 @@
             patchHeading(container);
 
             var indicator = buildStepIndicator();
-            var perksBanner = buildPerksBanner();
-            var perksCarousel = buildPerksCarousel();
+            var perks = buildPerksCarousel(); /* { carousel, dots } */
 
             var heading = container.querySelector(".banner-text");
-            container.insertBefore(indicator, heading || container.firstChild);
-            container.insertBefore(perksBanner, heading ? heading.nextSibling : null);
-            container.insertBefore(perksCarousel, perksBanner.nextSibling);
+            var ref = heading || container.firstChild;
+
+            /* Order: indicator → carousel → dots → heading */
+            container.insertBefore(indicator, ref);
+            container.insertBefore(perks.carousel, heading ? heading.nextSibling : null);
+            container.insertBefore(perks.dots, perks.carousel.nextSibling);
 
             startCarousel();
             document.addEventListener("visibilitychange", onVisibilityChange);
 
             _mounted = true;
 
-            /* Expose teardown for SPA route changes */
             window.__igCabInjectorDestroy = function() {
                 stopCarousel();
                 document.removeEventListener("visibilitychange", onVisibilityChange);
 
-                [STYLE_ID, INDICATOR_ID, PERKS_ID, CAROUSEL_ID].forEach(function(id) {
+                [STYLE_ID, INDICATOR_ID, CAROUSEL_ID, DOTS_ID].forEach(function(id) {
                     var el = document.getElementById(id);
                     if (el && el.parentNode) el.parentNode.removeChild(el);
                 });
