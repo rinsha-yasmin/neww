@@ -1,0 +1,586 @@
+<script>
+    (function() {
+        "use strict";
+
+        /* ─────────────────────────────────────────────
+         * CONSTANTS
+         * ───────────────────────────────────────────── */
+        var STYLE_ID = "ig-cab-injector-styles";
+        var INDICATOR_ID = "ig-step-indicator";
+        var CAROUSEL_ID = "ig-perks-carousel";
+        var DOTS_ID = "ig-perks-dots";
+        var USP_BAR_ID = "ig-perks-bar"; // desktop static bar
+        var CAROUSEL_INTERVAL = 3000;
+        var HEARTBEAT_MS = 800;
+        var CONTAINER_SEL = ".cab-bookingmf-container";
+        var MOBILE_BREAKPOINT = 768;
+
+        /* ─────────────────────────────────────────────
+         * STATE
+         * ───────────────────────────────────────────── */
+        var _carouselTimer = null;
+        var _carouselIndex = 0;
+        var _carouselDots = [];
+        var _mounted = false;
+        var _observer = null;
+        var _heartbeat = null;
+        var _lastIsMobile = null; // track breakpoint changes
+
+        /* ─────────────────────────────────────────────
+         * DATA
+         * ───────────────────────────────────────────── */
+        var PERKS = [{
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
+                text: "Reserve at just \u20B949*"
+            },
+            {
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
+                text: "100% Confirmed rides"
+            },
+            {
+                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
+                text: "Free cancellation until pickup"
+            }
+        ];
+
+        var CHECK_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_ticker.png?ui-ux=newui";
+        var CIRCLE_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabd_hd.png?ui-ux=newui";
+
+        var STEPS = [{
+                label: "Booked flight",
+                done: true
+            },
+            {
+                label: "Web check-in",
+                done: true
+            },
+            {
+                label: "Book Cab",
+                done: false
+            }
+        ];
+
+        /* ─────────────────────────────────────────────
+         * HELPERS
+         * ───────────────────────────────────────────── */
+        function isMobile() {
+            return window.innerWidth <= MOBILE_BREAKPOINT;
+        }
+
+        function safeRemoveById(id) {
+            var el = document.getElementById(id);
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+        }
+
+        function removeInjectedNodes() {
+            [INDICATOR_ID, CAROUSEL_ID, DOTS_ID, USP_BAR_ID].forEach(safeRemoveById);
+        }
+
+        /* ─────────────────────────────────────────────
+         * STYLES  (both breakpoints in one <style> tag)
+         * ───────────────────────────────────────────── */
+        function injectStyles() {
+            if (document.getElementById(STYLE_ID)) return;
+            var s = document.createElement("style");
+            s.id = STYLE_ID;
+            s.textContent = [
+
+                /* ── shared heading ── */
+                ".ig-heading-blue { color: rgba(175,228,255,1); font-family: var(--font-family-bauhuas-std-medium) !important; }",
+                ".banner-text p {",
+                "  font-family: var(--font-family-bauhuas-std-medium) !important;",
+                "  font-size: 24px !important;",
+                "  white-space: normal !important;",
+                "  overflow: visible !important;",
+                "  text-overflow: unset !important;",
+                "}",
+
+                /* ══════════════════════════════════════════
+                 * STEP INDICATOR  (shared base)
+                 * ══════════════════════════════════════════ */
+                "#" + INDICATOR_ID + " {",
+                "  display: flex;",
+                "  align-items: flex-start;",
+                "  width: 100%;",
+                "  box-sizing: border-box;",
+                "}",
+                ".ig-step { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }",
+                ".ig-step__row { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; width: 100%; }",
+                ".ig-step__icon { width: 10px; height: 10px; flex-shrink: 0; display: block; }",
+                ".ig-step__icon--done   { filter: invert(52%) sepia(80%) saturate(450%) hue-rotate(105deg) brightness(92%); }",
+                ".ig-step__icon--active { filter: none; }",
+                ".ig-step__label {",
+                "  font-size: 11px; font-weight: 400; white-space: nowrap; color: #fff;",
+                "  letter-spacing: 0.01em;",
+                "  font-family: var(--font-family-poppins-regular, sans-serif);",
+                "}",
+                ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden; }",
+                ".ig-step__bar-fill   { height: 100%; border-radius: 4px; transition: width .5s ease; width: 100%; }",
+                ".ig-step__bar-fill--done   { background: rgba(127,210,135,1); }",
+                ".ig-step__bar-fill--active { background: rgba(0,174,229,1); animation: ig-pulse .9s ease-in-out infinite alternate; }",
+                "@keyframes ig-pulse { from { opacity:1; } to { opacity:0.55; } }",
+
+                /* ── mobile-only step indicator tweaks ── */
+                "@media (max-width: " + MOBILE_BREAKPOINT + "px) {",
+                "  #" + INDICATOR_ID + " { gap: 6px; justify-content: center; margin-bottom: 8px; margin-top: 20px; }",
+                "  .ig-step__bar-track { margin-top: 13px !important; }",
+                "}",
+
+                /* ── desktop step indicator tweaks ── */
+                "@media (min-width: " + (MOBILE_BREAKPOINT + 1) + "px) {",
+                "  #" + INDICATOR_ID + " { gap: 8px; justify-content: flex-start; margin-bottom: 0px; margin-top: 0; max-width: 540px; }",
+                "  .ig-step__bar-track { margin-top: 6px; }",
+                "  .ig-step__label { font-size: 12px; }",
+                ".banner-text p {",
+                "  font-size: 44px !important;",
+                "}",
+                ".ig-step__icon { width: 16.6px; height: 16.6px;}",
+                ".ig-step__row {gap: 9px; margin-bottom: 12px !important; width: 100%; }",
+
+                "}",
+
+                /* ══════════════════════════════════════════
+                 * MOBILE CAROUSEL
+                 * ══════════════════════════════════════════ */
+                ".ig-perk-icon { width: 32px; height: 32px; flex-shrink: 0; display: block; }",
+
+                "#" + CAROUSEL_ID + " {",
+                "  background: rgba(175,228,255,1); border: none;",
+                "  border-radius: 8px; padding: 16px;",
+                "  width: 100%; box-sizing: border-box;",
+                "  display: flex; flex-direction: column; align-items: center;",
+                "}",
+
+                ".ig-carousel-track   { overflow: hidden; width: 100%; display: block; }",
+                ".ig-carousel-slides  { display: flex; transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); will-change: transform; }",
+                ".ig-carousel-slide   {",
+                "  min-width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;",
+                "  color: rgba(13,13,13,1);",
+                "  font-family: var(--font-family-poppins-medium) !important;",
+                "  font-size: 14px; font-weight: 500;",
+                "}",
+                ".ig-carousel-slide span { font-family: var(--font-family-poppins-medium) !important; }",
+
+                "#" + DOTS_ID + " {",
+                "  display: flex; justify-content: center; align-items: center; gap: 5px;",
+                "  width: 100%; padding: 0 16px;",
+                "  border-radius: 8px; box-sizing: border-box;",
+                "}",
+
+                ".ig-carousel-dot {",
+                "  width: 8px; height: 8px; border-radius: 50%;",
+                "  background: rgba(255,255,255,1); cursor: pointer;",
+                "  transition: all 0.3s ease; border: none; padding: 0; outline: none;",
+                "}",
+                ".ig-carousel-dot--active { background: rgba(169,125,14,1); width: 28px; border-radius: 6px; }",
+
+                /* ══════════════════════════════════════════
+                 * DESKTOP USP BAR  (static, all 3 in a row)
+                 * ══════════════════════════════════════════ */
+                "#" + USP_BAR_ID + " {",
+                "  display: flex; align-items: center; justify-content: space-evenly;",
+                "  background: rgba(175,228,255,1);",
+                "  border-radius: 8px;",
+                "  width: 100%; box-sizing: border-box;",
+                "  padding: 14px 24px;",
+                "  margin-top: 0px; margin-bottom: 0;",
+                "}",
+
+                ".ig-usp-item {",
+                "  display: flex; align-items: center; gap: 10px;",
+                "  color: rgba(13,13,13,1);",
+                "  font-family: var(--font-family-poppins-medium, sans-serif) !important;",
+                "  font-size: 14px; font-weight: 500;",
+                "  flex: 1; justify-content: center;",
+                "}",
+                ".ig-usp-item span { font-family: var(--font-family-poppins-medium, sans-serif) !important; }",
+
+                ".ig-usp-divider {",
+                "  width: 1px; height: 24px;",
+                "  background: #7A85A0;",
+                "  flex-shrink: 0;",
+                "}"
+
+            ].join("\n");
+            document.head.appendChild(s);
+        }
+
+        /* ─────────────────────────────────────────────
+         * CAROUSEL  (mobile)
+         * ───────────────────────────────────────────── */
+        function goToSlide(index) {
+            _carouselIndex = index;
+            var inner = document.getElementById("ig-carousel-slides-inner");
+            if (inner) {
+                inner.style.transform = "translateX(-" + (index * 100) + "%)";
+            }
+            _carouselDots.forEach(function(dot, i) {
+                dot.className = "ig-carousel-dot" + (i === index ? " ig-carousel-dot--active" : "");
+            });
+        }
+
+        function startCarousel() {
+            stopCarousel();
+            _carouselTimer = setInterval(function() {
+                goToSlide((_carouselIndex + 1) % PERKS.length);
+            }, CAROUSEL_INTERVAL);
+        }
+
+        function stopCarousel() {
+            if (_carouselTimer) {
+                clearInterval(_carouselTimer);
+                _carouselTimer = null;
+            }
+        }
+
+        function buildPerksCarousel() {
+            _carouselDots = [];
+            _carouselIndex = 0;
+
+            var carousel = document.createElement("div");
+            carousel.id = CAROUSEL_ID;
+
+            var track = document.createElement("div");
+            track.className = "ig-carousel-track";
+
+            var slidesWrap = document.createElement("div");
+            slidesWrap.id = "ig-carousel-slides-inner";
+            slidesWrap.className = "ig-carousel-slides";
+
+            PERKS.forEach(function(perk) {
+                var slide = document.createElement("div");
+                slide.className = "ig-carousel-slide";
+
+                var img = document.createElement("img");
+                img.src = perk.iconUrl;
+                img.alt = perk.text;
+                img.className = "ig-perk-icon";
+                slide.appendChild(img);
+
+                var span = document.createElement("span");
+                span.textContent = perk.text;
+                slide.appendChild(span);
+
+                slidesWrap.appendChild(slide);
+            });
+
+            track.appendChild(slidesWrap);
+            carousel.appendChild(track);
+
+            /* touch swipe */
+            var touchStartX = 0;
+            track.addEventListener("touchstart", function(e) {
+                touchStartX = e.touches[0].clientX;
+                stopCarousel();
+            }, {
+                passive: true
+            });
+
+            track.addEventListener("touchend", function(e) {
+                var diff = touchStartX - e.changedTouches[0].clientX;
+                if (Math.abs(diff) > 30) {
+                    var next = diff > 0 ?
+                        (_carouselIndex + 1) % PERKS.length :
+                        (_carouselIndex - 1 + PERKS.length) % PERKS.length;
+                    goToSlide(next);
+                }
+                startCarousel();
+            }, {
+                passive: true
+            });
+
+            /* dots */
+            var dotsWrap = document.createElement("div");
+            dotsWrap.id = DOTS_ID;
+
+            PERKS.forEach(function(_, i) {
+                var dot = document.createElement("button");
+                dot.className = "ig-carousel-dot" + (i === 0 ? " ig-carousel-dot--active" : "");
+                dot.setAttribute("aria-label", "Slide " + (i + 1));
+                (function(idx) {
+                    dot.addEventListener("click", function() {
+                        goToSlide(idx);
+                        stopCarousel();
+                        startCarousel();
+                    });
+                })(i);
+                _carouselDots.push(dot);
+                dotsWrap.appendChild(dot);
+            });
+
+            return {
+                carousel: carousel,
+                dots: dotsWrap
+            };
+        }
+
+        /* ─────────────────────────────────────────────
+         * USP BAR  (desktop — all 3 items static)
+         * ───────────────────────────────────────────── */
+        function buildUspBar() {
+            var bar = document.createElement("div");
+            bar.id = USP_BAR_ID;
+
+            PERKS.forEach(function(perk, i) {
+                var item = document.createElement("div");
+                item.className = "ig-usp-item";
+
+                var img = document.createElement("img");
+                img.src = perk.iconUrl;
+                img.alt = perk.text;
+                img.className = "ig-perk-icon";
+                item.appendChild(img);
+
+                var span = document.createElement("span");
+                span.textContent = perk.text;
+                item.appendChild(span);
+
+                bar.appendChild(item);
+
+                if (i < PERKS.length - 1) {
+                    var divider = document.createElement("div");
+                    divider.className = "ig-usp-divider";
+                    divider.setAttribute("aria-hidden", "true");
+                    bar.appendChild(divider);
+                }
+            });
+
+            return bar;
+        }
+
+        /* ─────────────────────────────────────────────
+         * STEP INDICATOR  (shared — mobile & desktop)
+         * ───────────────────────────────────────────── */
+        function buildStepIndicator() {
+            var indicator = document.createElement("div");
+            indicator.id = INDICATOR_ID;
+
+            STEPS.forEach(function(step) {
+                var stepEl = document.createElement("div");
+                stepEl.className = "ig-step";
+
+                var row = document.createElement("div");
+                row.className = "ig-step__row";
+
+                var img = document.createElement("img");
+                img.src = step.done ? CHECK_ICON : CIRCLE_ICON;
+                img.alt = step.label;
+                img.className = "ig-step__icon " + (step.done ? "ig-step__icon--done" : "ig-step__icon--active");
+
+                var label = document.createElement("span");
+                label.className = "ig-step__label";
+                label.textContent = step.label;
+
+                row.appendChild(img);
+                row.appendChild(label);
+
+                var track = document.createElement("div");
+                track.className = "ig-step__bar-track";
+
+                var fill = document.createElement("div");
+                fill.className = "ig-step__bar-fill " + (step.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
+
+                track.appendChild(fill);
+                stepEl.appendChild(row);
+                stepEl.appendChild(track);
+                indicator.appendChild(stepEl);
+            });
+
+            return indicator;
+        }
+
+        /* ─────────────────────────────────────────────
+         * HEADING PATCH
+         * ───────────────────────────────────────────── */
+        function patchHeading(container) {
+            var p = container.querySelector(".banner-text p");
+            if (!p) return;
+            p.innerHTML = '<span class="ig-heading-blue">Heading to the airport? </span>Book a cab now';
+        }
+
+        /* ─────────────────────────────────────────────
+         * MOUNT
+         * ───────────────────────────────────────────── */
+        function mount() {
+            var container = document.querySelector(CONTAINER_SEL);
+            if (!container) return false;
+
+            if (_mounted) {
+                var existingIndicator = document.getElementById(INDICATOR_ID);
+                if (existingIndicator && container.contains(existingIndicator)) {
+                    return true;
+                }
+                _mounted = false;
+                stopCarousel();
+            }
+
+            injectStyles();
+            removeInjectedNodes();
+            patchHeading(container);
+
+            var mobile = isMobile();
+            var indicator = buildStepIndicator();
+            var heading = container.querySelector(".banner-text");
+
+            if (mobile) {
+                var perks = buildPerksCarousel();
+
+                if (heading) {
+                    container.insertBefore(indicator, heading);
+                    heading.insertAdjacentElement("afterend", perks.carousel);
+                    perks.carousel.insertAdjacentElement("afterend", perks.dots);
+                } else {
+                    container.insertBefore(perks.dots, container.firstChild);
+                    container.insertBefore(perks.carousel, container.firstChild);
+                    container.insertBefore(indicator, container.firstChild);
+                }
+
+                startCarousel();
+
+            } else {
+                var uspBar = buildUspBar();
+
+                if (heading) {
+                    container.insertBefore(indicator, heading);
+                    heading.insertAdjacentElement("afterend", uspBar);
+                } else {
+                    container.insertBefore(uspBar, container.firstChild);
+                    container.insertBefore(indicator, container.firstChild);
+                }
+            }
+
+            _mounted = true;
+            return true;
+        }
+
+        /* ─────────────────────────────────────────────
+         * BREAKPOINT CHANGE
+         * ───────────────────────────────────────────── */
+        function onResize() {
+            var mobile = isMobile();
+            if (_lastIsMobile === null) {
+                _lastIsMobile = mobile;
+            }
+
+            if (mobile !== _lastIsMobile) {
+                _lastIsMobile = mobile;
+                _mounted = false;
+                stopCarousel();
+                removeInjectedNodes();
+                mount();
+                return;
+            }
+
+            if (!_mounted) mount();
+        }
+
+        /* ─────────────────────────────────────────────
+         * HEARTBEAT
+         * ───────────────────────────────────────────── */
+        function startHeartbeat() {
+            if (_heartbeat) return;
+            _heartbeat = setInterval(function() {
+                if (!_mounted) return;
+
+                var container = document.querySelector(CONTAINER_SEL);
+                if (!container) {
+                    _mounted = false;
+                    stopCarousel();
+                    return;
+                }
+
+                var indicator = document.getElementById(INDICATOR_ID);
+                if (!indicator || !container.contains(indicator)) {
+                    _mounted = false;
+                    stopCarousel();
+                    mount();
+                }
+            }, HEARTBEAT_MS);
+        }
+
+        /* ─────────────────────────────────────────────
+         * MUTATION OBSERVER
+         * ───────────────────────────────────────────── */
+        function startObserver() {
+            if (_observer) return;
+
+            if (typeof MutationObserver === "undefined") {
+                var pollTimer = setInterval(function() {
+                    if (mount()) clearInterval(pollTimer);
+                }, 500);
+                return;
+            }
+
+            _observer = new MutationObserver(function() {
+                if (!_mounted) mount();
+            });
+
+            _observer.observe(document.body || document.documentElement, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        /* ─────────────────────────────────────────────
+         * VISIBILITY
+         * ───────────────────────────────────────────── */
+        function onVisibilityChange() {
+            if (document.visibilityState === "hidden") {
+                stopCarousel();
+            } else if (_mounted && isMobile()) {
+                startCarousel();
+            }
+        }
+
+        /* ─────────────────────────────────────────────
+         * PUBLIC DESTROY
+         * ───────────────────────────────────────────── */
+        window.__igCabInjectorDestroy = function() {
+            stopCarousel();
+
+            if (_observer) {
+                _observer.disconnect();
+                _observer = null;
+            }
+            if (_heartbeat) {
+                clearInterval(_heartbeat);
+                _heartbeat = null;
+            }
+
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("resize", onResize);
+
+            removeInjectedNodes();
+
+            var styleEl = document.getElementById(STYLE_ID);
+            if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+
+            var p = document.querySelector(".banner-text p");
+            if (p) p.textContent = "Heading to the airport? Book a cab now";
+
+            _mounted = false;
+            _carouselDots = [];
+            _carouselIndex = 0;
+            _lastIsMobile = null;
+        };
+
+        /* ─────────────────────────────────────────────
+         * INIT
+         * ───────────────────────────────────────────── */
+        function init() {
+            _lastIsMobile = isMobile();
+            document.addEventListener("visibilitychange", onVisibilityChange);
+            window.addEventListener("resize", onResize);
+            mount();
+            startObserver();
+            startHeartbeat();
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", init);
+        } else {
+            init();
+        }
+
+    })();
+</script>
