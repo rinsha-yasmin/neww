@@ -1,0 +1,187 @@
+<script>
+    (function() {
+        "use strict";
+
+        /* ============================================================
+           CONFIG
+        ============================================================ */
+        var STORAGE_KEY = "LoginSalePopupShown";
+
+        function getTodayKey() {
+            return new Date().toISOString().split("T")[0];
+        }
+        var IMAGES = {
+            mobile: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/hotels/edited_creative_(25).png?ui-ux=newui",
+            desktop: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/hotels/edited_creative_(26).png?ui-ux=newui"
+        };
+
+        var LOGIN_IMG_SELECTOR = ".login-sso-image-V2 img";
+
+        /* ============================================================
+           DEVICE CHECK
+        ============================================================ */
+        function isMobile() {
+            return window.matchMedia("(max-width: 767px)").matches;
+        }
+
+        function getLoginImage() {
+            return isMobile() ? IMAGES.mobile : IMAGES.desktop;
+        }
+
+        /* ============================================================
+           STEP 1 — INJECT CSS OVERRIDE IMMEDIATELY (prevents flash)
+        ============================================================ */
+        function injectImageOverride() {
+            if (document.getElementById("login-img-override")) return;
+            var imgSrc = getLoginImage();
+            var style = document.createElement("style");
+            style.id = "login-img-override";
+            style.textContent = [
+                '.login-sso-image-V2 img {',
+                '  content: url("' + imgSrc + '") !important;',
+                '  visibility: visible !important;',
+                '}'
+            ].join('');
+            document.head.appendChild(style);
+        }
+
+        /* ============================================================
+           STEP 2 — ALSO SET src ATTRIBUTE (belt and suspenders)
+        ============================================================ */
+        var _imgObs = null;
+
+        function startImageObserver() {
+            if (_imgObs) return;
+            var imgSrc = getLoginImage();
+
+            // Try immediately first
+            var el = document.querySelector(LOGIN_IMG_SELECTOR);
+            if (el) {
+                el.src = imgSrc;
+                return;
+            }
+
+            _imgObs = new MutationObserver(function() {
+                var target = document.querySelector(LOGIN_IMG_SELECTOR);
+                if (target) {
+                    target.src = imgSrc;
+                    // Also force-remove any lazy-load attributes
+                    target.removeAttribute("data-src");
+                    target.removeAttribute("data-lazy");
+                    target.removeAttribute("data-original");
+                }
+            });
+
+            _imgObs.observe(document.documentElement, {
+                childList: true,
+                subtree: true
+            });
+
+            setTimeout(function() {
+                if (_imgObs) {
+                    _imgObs.disconnect();
+                    _imgObs = null;
+                }
+            }, 15000);
+        }
+
+        /* ============================================================
+           ADOBE TRACKING
+        ============================================================ */
+        function track(action) {
+            try {
+                if (!window.adobeDataLayer) return;
+                window.adobeDataLayer.push({
+                    event: "click",
+                    interactionType: "Link/ButtonClick",
+                    page: {
+                        LOB: "Hotels",
+                        eventInfo: {
+                            name: action,
+                            component: "hotel_flashsalePopup",
+                            position: isMobile() ? "mobile" : "desktop"
+                        }
+                    }
+                });
+            } catch (e) {}
+        }
+
+        /* ============================================================
+           FIRE LOGIN POPUP
+        ============================================================ */
+        function fireLoginClick() {
+            var btn = document.querySelector('[data-login-type="loginSSOPopup"]');
+            if (!btn) return false;
+
+            btn.dispatchEvent(
+                new CustomEvent("toggleLoginPopupEvent", {
+                    bubbles: true,
+                    detail: btn.dataset
+                })
+            );
+
+            return true;
+        }
+
+        /* ============================================================
+           APP READY HANDLER
+        ============================================================ */
+        var _done = false;
+
+        function onAppReady() {
+            if (_done) return;
+            _done = true;
+
+            localStorage.setItem(STORAGE_KEY, getTodayKey());
+
+            track("popup_image_click");
+
+            setTimeout(function() {
+                // Start observer BEFORE firing login click
+                // so it's already watching when modal renders
+                startImageObserver();
+                fireLoginClick();
+            }, 900);
+        }
+
+        /* ============================================================
+           EARLY INIT — run before localStorage check
+           so CSS is injected even on first visit
+        ============================================================ */
+        injectImageOverride();
+
+        /* ============================================================
+           SKIP IF ALREADY SHOWN
+        ============================================================ */
+        var today = getTodayKey();
+        if (localStorage.getItem(STORAGE_KEY) === today) return;
+
+        /* ============================================================
+           TOKEN EVENT HOOK
+        ============================================================ */
+        var _originalLog = console.log.bind(console);
+
+        console.log = function() {
+            _originalLog.apply(console, arguments);
+            try {
+                if (
+                    typeof arguments[0] === "string" &&
+                    arguments[0].indexOf("TOKEN EVENT FIRED") !== -1
+                ) {
+                    console.log = _originalLog;
+                    onAppReady();
+                }
+            } catch (e) {}
+        };
+
+        /* ============================================================
+           FALLBACK — if TOKEN EVENT never fires
+        ============================================================ */
+        setTimeout(function() {
+            if (_done) return;
+            console.log = _originalLog;
+            onAppReady();
+        }, 12000);
+
+    })();
+</script>
