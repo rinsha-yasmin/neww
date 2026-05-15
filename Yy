@@ -1,0 +1,47 @@
+function mount() {
+    if (!isDesktop()) {
+        if (_mounted) { _mounted = false; removeInjectedNodes(); }
+        return false;
+    }
+
+    var container = document.querySelector(CONTAINER_SEL);
+    if (!container) return false;
+
+    if (_mounted) {
+        var existingIndicator = document.getElementById(INDICATOR_ID);
+        if (existingIndicator && container.contains(existingIndicator)) return true;
+        _mounted = false;
+    }
+
+    injectStyles();
+    removeInjectedNodes();
+    patchHeading(container);
+
+    var indicator = buildStepIndicator();
+    var uspBar = buildUspBar();
+    var heading = container.querySelector(".banner-text");
+
+    // ✅ Step 1: Make nodes invisible BEFORE inserting
+    indicator.style.visibility = 'hidden';
+    uspBar.style.visibility = 'hidden';
+
+    // ✅ Step 2: Insert DOM nodes (layout shift happens here but user can't see it)
+    if (heading) {
+        container.insertBefore(indicator, heading);
+        heading.insertAdjacentElement("afterend", uspBar);
+    } else {
+        container.insertBefore(uspBar, container.firstChild);
+        container.insertBefore(indicator, container.firstChild);
+    }
+
+    // ✅ Step 3: Reveal after next paint — no visible jump
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() { // double rAF ensures layout is settled
+            indicator.style.visibility = '';
+            uspBar.style.visibility = '';
+            _mounted = true;
+        });
+    });
+
+    return true;
+}
