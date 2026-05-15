@@ -1,0 +1,362 @@
+<script>
+    (function() {
+        const isMobile = window.innerWidth <= 768;
+        const mobileSelector = '.HomeMobile_popular_amongst_traveller_container__Vbz2f';
+        const desktopSelector = '.Home_offers-for-you-container__JzF67';
+
+        function insertCarouselAfter(targetElement) {
+            if (document.querySelector('.sightseeing-carousel')) return;
+
+            const carouselSection = document.createElement('section');
+            carouselSection.className = 'sightseeing-carousel';
+            carouselSection.innerHTML = `
+       <h2>Trending Sight Seeing Cities - <span class="highlight"> 50%* off  </span></h2>
+      <div class="carousel-nav">
+        <button class="arrow left">&#10094;</button>
+        <button class="arrow right">&#10095;</button>
+      </div>
+      <div class="carousel-wrapper">
+        <div class="carousel-track-wrapper">
+          <div class="carousel-track"></div>
+        </div>
+      </div>
+    `;
+
+            targetElement.parentNode.insertBefore(carouselSection, targetElement.nextSibling);
+
+            // Function to check if dark theme is active
+            function isDarkTheme() {
+                return document.body.classList.contains('dark-theme') ||
+                    document.body.classList.contains('dark-mode') ||
+                    document.documentElement.classList.contains('dark-theme') ||
+                    document.documentElement.classList.contains('dark-mode') ||
+                    window.getComputedStyle(document.body).backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)?.slice(1, 4).reduce((a, b) => parseInt(a) + parseInt(b), 0) < 384;
+            }
+
+            // Function to update h2 color based on theme
+            function updateH2Color() {
+                const h2 = carouselSection.querySelector('h2');
+                if (h2) {
+                    h2.style.color = isDarkTheme() ? 'white' : '#000';
+                }
+            }
+
+            const style = document.createElement('style');
+            style.textContent = `
+      .sightseeing-carousel {
+        margin-top: 70px !important;
+        margin-bottom: 20px;
+        position: relative;
+      }
+
+      .sightseeing-carousel h2 {
+        font-family: Bauhaus;
+        font-weight: 500;
+        font-size: 20px;
+        line-height: 24px;
+        color: #000;
+		margin-bottom: 12px;
+        margin-left: 8px;
+        transition: color 0.3s ease;
+      }
+
+      .highlight {
+        color: green;
+      }
+
+      .carousel-nav {
+       position: absolute;
+    top: 0px;
+display: flex;
+justify-content: flex-end;
+    right: 5px;
+    bottom: unset;
+    z-index: 1;
+    gap: 8px;
+      }
+.overlay-label {
+  font-size: 1.25rem;
+  color: white;
+      position: absolute;
+    bottom: 22px;
+    align-items: center;
+  font-family: var(--font-family-poppins-regular);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .overlay-label {
+    font-size: 1rem;
+  }
+}
+	.card-overlay {
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    background: linear-gradient(0deg, rgba(0, 0, 0, .96), transparent, transparent);
+    border-radius: .75rem;
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    left: 0;
+    position: absolute;
+    top: 3px;
+    width: 100%;
+    z-index: 1;
+}
+      .arrow {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: none;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-main);
+        color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .carousel-wrapper {
+        display: flex;
+       
+        align-items: center;
+        justify-content: center;
+      }
+
+      .carousel-track-wrapper {
+        overflow: hidden;
+         border: none !important;
+        width: 100%;
+        position: relative;
+       //padding: 10px;
+      }
+
+      .carousel-track {
+        display: flex;
+        gap: 15px;
+        transition: transform 0.3s ease-in-out;
+        width: max-content;
+      }
+      
+      .carousel-track a {
+        flex: 0 0 auto;
+        width: 170px;
+		object-fit: cover;
+        height: 224px;
+        border-radius: 8px;
+      }
+
+      .carousel-track img {
+        width: 100%;
+        height: 100%;
+        border-radius: 8px;
+      }
+
+      @media (max-width: 768px) {
+        .sightseeing-carousel h2,
+        .highlight {
+          margin-bottom: 12px;
+          color: #25304b;
+          font-family: Poppins;
+          font-size: 16px;
+          font-weight: 600;
+          line-height: 24px;
+        }
+
+        .sightseeing-carousel {
+          margin: 24px 0 20px 20px !important;
+        }
+
+        .carousel-track a {
+        width: 125.5px !important;
+        height: 170px !important;
+      }
+
+        .carousel-nav {
+          display: none !important;
+        }
+
+        .carousel-track-wrapper {
+          overflow-x: auto;
+          scroll-behavior: smooth;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .carousel-track-wrapper::-webkit-scrollbar {
+          display: none;
+        }
+      }
+    `;
+            document.head.appendChild(style);
+
+            // Update color on load
+            updateH2Color();
+
+            // Watch for theme changes
+            const themeObserver = new MutationObserver(updateH2Color);
+            themeObserver.observe(document.body, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+            themeObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+
+            const desktopImages = [
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Burj_Khalifa@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Hawa_Mahal@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gardens_by_the_Bay@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/James_Bond_Island@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Beaches_&_Churches_Goa@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Ho_Chi_Minh.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gobustan@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Bangkok.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gateway_of_India@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Pattaya.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Kuala_Lumpur.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Hanoi.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Abu_Dhabi.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Taj_Mahal@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Canal_Cruise@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/s6web/in/en/assets/target/sightseeing-banners/Explore_more_cities_web.png"
+            ];
+
+            const mobileImages = [
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Burj-Khalifa-mweb@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Hawa-Mahal-mweb@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gardens-by-the-Bay-mweb@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/James_Bond_Island@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Beaches_&_Churches_Goa@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Ho_Chi_Minh.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gobustan-mweb@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Bangkok.mweb.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Gateway_of_India@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Pattaya.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Kuala_Lumpur.mweb.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Hanoi.mweb.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Abu_Dhabi.mweb.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Taj_Mahal@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Sight_seeing/Canal-Cruise-mweb@3x.jpg?ui-ux=newui",
+                "https://www.goindigo.in/content/dam/s6web/in/en/assets/target/sightseeing-banners/Expore_more_cities_Mweb.png"
+            ];
+
+            const overlayLabels = [
+                "Dubai ", "Jaipur", "Singapore", "Phuket", "Goa", "Ho Chi Minh ", "Baku", "Bangkok", "Delhi", "Pattaya", "Kuala Lumpur ", "Hanoi", "Abu Dhabi", "Agra", "Amsterdam"
+            ];
+
+            const links = [
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12633&searchTerm=Dubai&destinationType=City&country=United+Arab+Emirates",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=11649&searchTerm=Jaipur&destinationType=City&country=India",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=13229&searchTerm=Singapore&destinationType=City&country=Singapore",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12548&searchTerm=Phuket&destinationType=City&country=Thailand",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=562427971348613&searchTerm=Goa&destinationType=City&country=India",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12662&searchTerm=Ho+Chi+Minh+City&destinationType=City&country=Vietnam",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=10881&searchTerm=Baku&destinationType=City&country=Azerbaijan",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12532&searchTerm=Bangkok&destinationType=City&country=Thailand",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=11667&searchTerm=New+Delhi&destinationType=City&country=India",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12547&searchTerm=Pattaya&destinationType=City&country=Thailand",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=11965&searchTerm=Kuala+Lumpur&destinationType=City&country=Malaysia ",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12661&searchTerm=Hanoi&destinationType=City&country=Vietnam",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=12630&searchTerm=Abu+Dhabi&destinationType=City&country=United+Arab+Emirates ",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=11622&searchTerm=Agra&destinationType=City&country=India",
+                "https://www.goindigo.in/sightseeing/select.html?destinationId=10799&searchTerm=Amsterdam&destinationType=City&country=Netherlands",
+                "https://www.goindigo.in/sightseeing.html?linkNav=New%20Rail%20Homepage"
+            ];
+
+            const track = carouselSection.querySelector('.carousel-track');
+            const trackWrapper = carouselSection.querySelector('.carousel-track-wrapper');
+            const images = isMobile ? mobileImages : desktopImages;
+
+            images.forEach((src, i) => {
+                const a = document.createElement('a');
+                a.href = links[i];
+                a.target = "_blank";
+                // Overlay wrapper
+                const overlayWrapper = document.createElement('div');
+                overlayWrapper.style.position = 'relative';
+                overlayWrapper.style.width = '100%';
+                overlayWrapper.style.height = '100%';
+
+                const img = document.createElement('img');
+                img.src = src;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.borderRadius = '8px';
+                img.style.objectFit = 'cover';
+
+                const overlay = document.createElement('div');
+                overlay.className = 'card-overlay';
+
+                const overlayText = document.createElement('span');
+                overlayText.textContent = overlayLabels[i] || '';
+                overlayText.className = 'overlay-label';
+
+                overlay.appendChild(overlayText);
+                overlayWrapper.appendChild(img);
+                overlayWrapper.appendChild(overlay);
+
+                a.appendChild(overlayWrapper);
+                track.appendChild(a);
+            });
+
+            const visibleBlocks = 4;
+            const blockWidth = 282 + 15;
+            let currentIndex = 0;
+
+            const leftArrow = carouselSection.querySelector('.arrow.left');
+            const rightArrow = carouselSection.querySelector('.arrow.right');
+
+            function scrollToIndex(index) {
+                const maxIndex = images.length - visibleBlocks;
+                currentIndex = Math.max(0, Math.min(index, maxIndex));
+                const scrollAmount = currentIndex * blockWidth;
+                trackWrapper.scrollTo({
+                    left: scrollAmount,
+                    behavior: 'smooth'
+                });
+                updateArrowStates();
+            }
+
+            function updateArrowStates() {
+                const maxScrollLeft = trackWrapper.scrollWidth - trackWrapper.clientWidth;
+                const currentScroll = trackWrapper.scrollLeft;
+                leftArrow.style.background = currentScroll <= 0 ? 'rgba(34, 34, 34, .1)' : '#1a1a8a';
+                rightArrow.style.background = currentScroll >= maxScrollLeft - 5 ? '#ccc' : '#009';
+            }
+
+            leftArrow.addEventListener('click', () => scrollToIndex(currentIndex - 1));
+            rightArrow.addEventListener('click', () => scrollToIndex(currentIndex + 1));
+            updateArrowStates();
+        }
+
+        function waitForSecondElement(selector, callback) {
+            const elements = document.querySelectorAll(selector);
+            if (elements.length >= 2) {
+                callback(elements[1]);
+                return;
+            }
+
+            const observer = new MutationObserver(() => {
+                const updatedElements = document.querySelectorAll(selector);
+                if (updatedElements.length >= 2) {
+                    observer.disconnect();
+                    callback(updatedElements[1]);
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+            });
+        }
+
+        const selectorToUse = isMobile ? mobileSelector : desktopSelector;
+        waitForSecondElement(selectorToUse, insertCarouselAfter);
+    })();
+</script>
