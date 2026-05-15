@@ -1,0 +1,407 @@
+```javascript
+(function() {
+    "use strict";
+
+    /* ─────────────────────────────────────────────
+     * CONSTANTS
+     * ───────────────────────────────────────────── */
+    var STYLE_ID = "ig-cab-injector-styles";
+    var INDICATOR_ID = "ig-step-indicator";
+    var USP_BAR_ID = "ig-perks-bar";
+    var HEARTBEAT_MS = 800;
+    var CONTAINER_SEL = ".cab-bookingmf-container";
+    var MOBILE_BREAKPOINT = 1024; // ✅ Updated: matches mobile MF activation width
+
+    /* ─────────────────────────────────────────────
+     * STATE
+     * ───────────────────────────────────────────── */
+    var _mounted = false;
+    var _observer = null;
+    var _heartbeat = null;
+    var _resizeTimer = null; // ✅ Added for debounce
+
+    /* ─────────────────────────────────────────────
+     * DATA
+     * ───────────────────────────────────────────── */
+    var PERKS = [{
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
+            text: "Reserve at just ₹49*"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
+            text: "100% Confirmed rides"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
+            text: "Free cancellation until pickup"
+        }
+    ];
+
+    var CHECK_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_ticker.png?ui-ux=newui";
+    var CIRCLE_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabd_hd.png?ui-ux=newui";
+
+    var STEPS = [{
+            label: "Booked flight",
+            done: true
+        },
+        {
+            label: "Book Cab",
+            done: false
+        }
+    ];
+
+    /* ─────────────────────────────────────────────
+     * DESKTOP CHECK
+     * ───────────────────────────────────────────── */
+    function isDesktop() {
+        return window.innerWidth > MOBILE_BREAKPOINT; // ✅ Now hides below 1024px
+    }
+
+    /* ─────────────────────────────────────────────
+     * HELPERS
+     * ───────────────────────────────────────────── */
+    function safeRemoveById(id) {
+        var el = document.getElementById(id);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function removeInjectedNodes() {
+        [INDICATOR_ID, USP_BAR_ID].forEach(safeRemoveById);
+    }
+
+    /* ─────────────────────────────────────────────
+     * STYLES
+     * ───────────────────────────────────────────── */
+    function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        var s = document.createElement("style");
+        s.id = STYLE_ID;
+        s.textContent = [
+
+            ".ig-heading-blue { color: rgba(175,228,255,1); font-family: var(--font-family-bauhuas-std-medium) !important; }",
+            ".banner-text p {",
+            "  font-family: var(--font-family-bauhuas-std-medium) !important;",
+            "  font-size: 24px !important;",
+            "  white-space: normal !important;",
+            "  overflow: visible !important;",
+            "  text-overflow: unset !important;",
+            "}",
+
+            "#" + INDICATOR_ID + " {",
+            "  display: flex;",
+            "  align-items: flex-start;",
+            "  width: 100%;",
+            "  box-sizing: border-box;",
+            "}",
+            ".ig-step { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }",
+            ".ig-step__row { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; width: 100%; }",
+            ".ig-step__icon { width: 10px; height: 10px; flex-shrink: 0; display: block; }",
+            ".ig-step__icon--done   { filter: none; }",
+            ".ig-step__icon--active { filter: none; }",
+            ".ig-step__label {",
+            "  font-size: 11px; font-weight: 400; white-space: nowrap; color: #fff;",
+            "  letter-spacing: 0.01em;",
+            "  font-family: var(--font-family-poppins-regular, sans-serif);",
+            "}",
+            ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden; }",
+            ".ig-step__bar-fill   { height: 100%; border-radius: 4px; transition: width .5s ease; width: 100%; }",
+            ".ig-step__bar-fill--done   { background: rgba(127,210,135,1); }",
+            ".ig-step__bar-fill--active { background: rgba(0,174,229,1); }",
+            "@keyframes ig-pulse { from { opacity:1; } to { opacity:0.55; } }",
+
+            // ✅ Updated: desktop styles only apply above 1024px
+            "@media (min-width: " + (MOBILE_BREAKPOINT + 1) + "px) {",
+            "  #" + INDICATOR_ID + " { gap: 8px; justify-content: flex-start; margin-bottom: 0px; margin-top: 0; max-width: 540px; }",
+            "  .ig-step__bar-track { margin-top: 6px; }",
+            "  .ig-step__label { font-size: 12px; }",
+            "  .banner-text p { font-size: 44px !important; }",
+            "  .ig-step__icon { width: 16.6px; height: 16.6px; }",
+            "  .ig-step__row { gap: 9px; margin-bottom: 12px !important; width: 100%; }",
+            "}",
+
+            ".ig-perk-icon { width: 32px; height: 32px; flex-shrink: 0; display: block; }",
+
+            "#" + USP_BAR_ID + " {",
+            "  display: flex; align-items: center; justify-content: space-evenly;",
+            "  background: rgba(175,228,255,1);",
+            "  border-radius: 8px;",
+            "  width: 100%; box-sizing: border-box;",
+            "  padding: 14px 24px;",
+            "  margin-top: 0px; margin-bottom: 0;",
+            "}",
+
+            ".ig-usp-item {",
+            "  display: flex; align-items: center; gap: 10px;",
+            "  color: rgba(13,13,13,1);",
+            "  font-family: var(--font-family-poppins-medium, sans-serif) !important;",
+            "  font-size: 14px; font-weight: 500;",
+            "  flex: 1; justify-content: center;",
+            "}",
+            ".ig-usp-item span { font-family: var(--font-family-poppins-medium, sans-serif) !important; }",
+
+            ".ig-usp-divider {",
+            "  width: 1px; height: 24px;",
+            "  background: #7A85A0;",
+            "  flex-shrink: 0;",
+            "}"
+
+        ].join("\n");
+        document.head.appendChild(s);
+    }
+
+    /* ─────────────────────────────────────────────
+     * USP BAR
+     * ───────────────────────────────────────────── */
+    function buildUspBar() {
+        var bar = document.createElement("div");
+        bar.id = USP_BAR_ID;
+
+        PERKS.forEach(function(perk, i) {
+            var item = document.createElement("div");
+            item.className = "ig-usp-item";
+
+            var img = document.createElement("img");
+            img.src = perk.iconUrl;
+            img.alt = perk.text;
+            img.className = "ig-perk-icon";
+            item.appendChild(img);
+
+            var span = document.createElement("span");
+            span.textContent = perk.text;
+            item.appendChild(span);
+
+            bar.appendChild(item);
+
+            if (i < PERKS.length - 1) {
+                var divider = document.createElement("div");
+                divider.className = "ig-usp-divider";
+                divider.setAttribute("aria-hidden", "true");
+                bar.appendChild(divider);
+            }
+        });
+
+        return bar;
+    }
+
+    /* ─────────────────────────────────────────────
+     * STEP INDICATOR
+     * ───────────────────────────────────────────── */
+    function buildStepIndicator() {
+        var indicator = document.createElement("div");
+        indicator.id = INDICATOR_ID;
+
+        STEPS.forEach(function(step) {
+            var stepEl = document.createElement("div");
+            stepEl.className = "ig-step";
+
+            var row = document.createElement("div");
+            row.className = "ig-step__row";
+
+            var img = document.createElement("img");
+            img.src = step.done ? CHECK_ICON : CIRCLE_ICON;
+            img.alt = step.label;
+            img.className = "ig-step__icon " + (step.done ? "ig-step__icon--done" : "ig-step__icon--active");
+
+            var label = document.createElement("span");
+            label.className = "ig-step__label";
+            label.textContent = step.label;
+
+            row.appendChild(img);
+            row.appendChild(label);
+
+            var track = document.createElement("div");
+            track.className = "ig-step__bar-track";
+
+            var fill = document.createElement("div");
+            fill.className = "ig-step__bar-fill " + (step.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
+
+            track.appendChild(fill);
+            stepEl.appendChild(row);
+            stepEl.appendChild(track);
+            indicator.appendChild(stepEl);
+        });
+
+        return indicator;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEADING PATCH
+     * ───────────────────────────────────────────── */
+    function patchHeading(container) {
+        var p = container.querySelector(".banner-text p");
+        if (!p) return;
+        p.innerHTML = '<span class="ig-heading-blue">Heading to the airport? </span> Book a cab now ';
+    }
+
+    /* ─────────────────────────────────────────────
+     * MOUNT
+     * ───────────────────────────────────────────── */
+    function mount() {
+        if (!isDesktop()) {
+            if (_mounted) {
+                _mounted = false;
+                removeInjectedNodes();
+            }
+            return false;
+        }
+
+        var container = document.querySelector(CONTAINER_SEL);
+        if (!container) return false;
+
+        if (_mounted) {
+            var existingIndicator = document.getElementById(INDICATOR_ID);
+            if (existingIndicator && container.contains(existingIndicator)) return true;
+            _mounted = false;
+        }
+
+        injectStyles();
+        removeInjectedNodes();
+        patchHeading(container);
+
+        var indicator = buildStepIndicator();
+        var uspBar = buildUspBar();
+        var heading = container.querySelector(".banner-text");
+
+        if (heading) {
+            container.insertBefore(indicator, heading);
+            heading.insertAdjacentElement("afterend", uspBar);
+        } else {
+            container.insertBefore(uspBar, container.firstChild);
+            container.insertBefore(indicator, container.firstChild);
+        }
+
+        _mounted = true;
+        return true;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEARTBEAT
+     * ───────────────────────────────────────────── */
+    function startHeartbeat() {
+        if (_heartbeat) return;
+        _heartbeat = setInterval(function() {
+            if (!isDesktop()) {
+                if (_mounted) {
+                    _mounted = false;
+                    removeInjectedNodes();
+                }
+                return;
+            }
+            if (!_mounted) return;
+
+            var container = document.querySelector(CONTAINER_SEL);
+            if (!container) {
+                _mounted = false;
+                return;
+            }
+
+            var indicator = document.getElementById(INDICATOR_ID);
+            if (!indicator || !container.contains(indicator)) {
+                _mounted = false;
+                mount();
+            }
+        }, HEARTBEAT_MS);
+    }
+
+    /* ─────────────────────────────────────────────
+     * MUTATION OBSERVER
+     * ───────────────────────────────────────────── */
+    function startObserver() {
+        if (_observer) return;
+
+        if (typeof MutationObserver === "undefined") {
+            var pollTimer = setInterval(function() {
+                if (mount()) clearInterval(pollTimer);
+            }, 500);
+            return;
+        }
+
+        _observer = new MutationObserver(function() {
+            if (!_mounted) mount();
+        });
+
+        _observer.observe(document.body || document.documentElement, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    /* ─────────────────────────────────────────────
+     * RESIZE — ✅ Debounced to avoid thrashing
+     * ───────────────────────────────────────────── */
+    function onResize() {
+        if (!isDesktop() && _mounted) {
+            _mounted = false;
+            removeInjectedNodes();
+        } else if (isDesktop() && !_mounted) {
+            mount();
+        }
+    }
+
+    function onResizeDebounced() {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(onResize, 150);
+    }
+
+    /* ─────────────────────────────────────────────
+     * PUBLIC DESTROY
+     * ───────────────────────────────────────────── */
+    window.__igCabInjectorDestroy = function() {
+        if (_observer) {
+            _observer.disconnect();
+            _observer = null;
+        }
+        if (_heartbeat) {
+            clearInterval(_heartbeat);
+            _heartbeat = null;
+        }
+
+        // ✅ Clear debounce timer on destroy
+        clearTimeout(_resizeTimer);
+        _resizeTimer = null;
+
+        window.removeEventListener("resize", onResizeDebounced);
+
+        removeInjectedNodes();
+
+        var styleEl = document.getElementById(STYLE_ID);
+        if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+
+        var p = document.querySelector(".banner-text p");
+        if (p) p.textContent = "Heading to the airport? Book a cab now";
+
+        _mounted = false;
+    };
+
+    /* ─────────────────────────────────────────────
+     * INIT
+     * ───────────────────────────────────────────── */
+    function init() {
+        window.addEventListener("resize", onResizeDebounced); // ✅ Debounced
+        mount();
+        startObserver();
+        startHeartbeat();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+
+})();
+```
+
+Here's a summary of every change made and why:
+
+| What changed | Where | Why |
+|---|---|---|
+| `MOBILE_BREAKPOINT = 1024` | Constants | Hides widget on half-screen desktop windows and any viewport ≤ 1024px where mobile MF takes over |
+| `@media (min-width: 1025px)` | CSS | Automatically follows the breakpoint constant so styles also only apply on true desktop |
+| `_resizeTimer` state variable | State | Holds the debounce timer reference so it can be cleared on destroy |
+| `onResizeDebounced()` | Resize | Wraps `onResize` in a 150ms debounce — prevents layout thrashing while user drags the window |
+| `window.addEventListener("resize", onResizeDebounced)` | Init | Uses the debounced version instead of raw handler |
+| `clearTimeout(_resizeTimer)` in destroy | Destroy | Cleans up any pending resize timer to prevent ghost callbacks after destroy |
+| `window.removeEventListener("resize", onResizeDebounced)` | Destroy | Correctly references the debounced function (must match what was passed to `addEventListener`) |
+
+> **Note:** If your mobile MF activates at a different width than 1024px, just update the single `MOBILE_BREAKPOINT` constant at the top — everything else (JS logic + CSS media query) derives from it automatically.
