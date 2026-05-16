@@ -1,383 +1,592 @@
-<script>
-    (function() {
-        "use strict";
+================================================================================
+CODE REVIEW FEEDBACK — Cabs Progress Bar (Desktop).js
+================================================================================
 
-        /* ─────────────────────────────────────────────
-         * CONSTANTS
-         * ───────────────────────────────────────────── */
-        var STYLE_ID = "ig-cab-injector-styles";
-        var INDICATOR_ID = "ig-step-indicator";
-        var USP_BAR_ID = "ig-perks-bar";
-        var HEARTBEAT_MS = 800;
-        var CONTAINER_SEL = ".cab-bookingmf-container";
-        var MOBILE_BREAKPOINT = 768;
+ISSUE #1 — XSS Risk via innerHTML
+--------------------------------------------------------------------------------
+Line:       193
+Severity:   HIGH
+Code:       p.innerHTML = '<span class="ig-heading-blue">Heading to the airport? </span> Book a cab now ';
 
-        /* ─────────────────────────────────────────────
-         * STATE
-         * ───────────────────────────────────────────── */
-        var _mounted = false;
-        var _observer = null;
-        var _heartbeat = null;
+Detail:     Using innerHTML introduces an XSS vector. While the current content
+            is static, this pattern is dangerous — any future change that
+            introduces dynamic/user-supplied data will become exploitable.
+            Additionally, innerHTML triggers HTML parser re-parsing of the
+            entire element subtree.
 
-        /* ─────────────────────────────────────────────
-         * DATA
-         * ───────────────────────────────────────────── */
-        var PERKS = [{
-                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
-                text: "Reserve at just ₹49*"
-            },
-            {
-                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
-                text: "100% Confirmed rides"
-            },
-            {
-                iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
-                text: "Free cancellation until pickup"
-            }
-        ];
+Solution:   Use DOM APIs (createElement + textContent) instead:
+            
+            p.textContent = '';
+            var span = document.createElement('span');
+            span.className = 'ig-heading-blue';
+            span.textContent = 'Heading to the airport? ';
+            p.appendChild(span);
+            p.appendChild(document.createTextNode(' Book a cab now '));
 
-        var CHECK_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_ticker.png?ui-ux=newui";
-        var CIRCLE_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabd_hd.png?ui-ux=newui";
+================================================================================
 
-        var STEPS = [{
-                label: "Booked flight",
-                done: true
-            },
+ISSUE #2 — Unbounded Polling Fallback (Memory Leak / CPU Waste)
+--------------------------------------------------------------------------------
+Line:       232-234
+Severity:   HIGH
+Code:       var pollTimer = setInterval(function() {
+                if (mount()) clearInterval(pollTimer);
+            }, 500);
 
-            {
-                label: "Book Cab",
-                done: false
-            }
-        ];
+Detail:     If `mount()` never returns true (e.g., the container element never
+            appears on the page), this interval runs forever at 500ms, consuming
+            CPU indefinitely. There is no maximum attempt count or timeout.
 
-        /* ─────────────────────────────────────────────
-         * DESKTOP CHECK
-         * ───────────────────────────────────────────── */
-        function isDesktop() {
-            return window.innerWidth > MOBILE_BREAKPOINT;
-        }
+Solution:   Add a maximum retry count or total elapsed time cap:
 
-        /* ─────────────────────────────────────────────
-         * HELPERS
-         * ───────────────────────────────────────────── */
-        function safeRemoveById(id) {
-            var el = document.getElementById(id);
-            if (el && el.parentNode) el.parentNode.removeChild(el);
-        }
+            var pollCount = 0;
+            var MAX_POLLS = 60; // 30 seconds max
+            var pollTimer = setInterval(function() {
+                pollCount++;
+                if (mount() || pollCount >= MAX_POLLS) clearInterval(pollTimer);
+            }, 500);
 
-        function removeInjectedNodes() {
-            [INDICATOR_ID, USP_BAR_ID].forEach(safeRemoveById);
-        }
+================================================================================
 
-        /* ─────────────────────────────────────────────
-         * STYLES  — untouched from your original
-         * ───────────────────────────────────────────── */
-        function injectStyles() {
-            if (document.getElementById(STYLE_ID)) return;
-            var s = document.createElement("style");
-            s.id = STYLE_ID;
-            s.textContent = [
+ISSUE #3 — Multiple Initializations / Stacking Intervals
+--------------------------------------------------------------------------------
+Line:       216 (startHeartbeat), 228 (startObserver), 283 (init)
+Severity:   HIGH
+Code:       _heartbeat = setInterval(function() { ... }, HEARTBEAT_MS);
 
-                ".ig-heading-blue { color: rgba(175,228,255,1); font-family: var(--font-family-bauhuas-std-medium) !important; }",
-                ".banner-text p {",
-                "  font-family: var(--font-family-bauhuas-std-medium) !important;",
-                "  font-size: 24px !important;",
-                "  white-space: normal !important;",
-                "  overflow: visible !important;",
-                "  text-overflow: unset !important;",
-                "}",
+Detail:     If this IIFE is loaded more than once (common with tag managers,
+            SPA re-renders, or script re-injection), there is no guard against
+            creating duplicate heartbeat intervals and mutation observers.
+            Each duplicate consumes resources and causes redundant DOM
+            operations. The `_heartbeat` check only works within the same
+            closure instance.
 
-                "#" + INDICATOR_ID + " {",
-                "  display: flex;",
-                "  align-items: flex-start;",
-                "  width: 100%;",
-                "  box-sizing: border-box;",
-                "}",
-                ".ig-step { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }",
-                ".ig-step__row { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; width: 100%; }",
-                ".ig-step__icon { width: 10px; height: 10px; flex-shrink: 0; display: block; }",
-                ".ig-step__icon--done   { filter: none; }",
-                ".ig-step__icon--active { filter: none; }",
-                ".ig-step__label {",
-                "  font-size: 11px; font-weight: 400; white-space: nowrap; color: #fff;",
-                "  letter-spacing: 0.01em;",
-                "  font-family: var(--font-family-poppins-regular, sans-serif);",
-                "}",
-                ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden; }",
-                ".ig-step__bar-fill   { height: 100%; border-radius: 4px; transition: width .5s ease; width: 100%; }",
-                ".ig-step__bar-fill--done   { background: rgba(127,210,135,1); }",
-                ".ig-step__bar-fill--active { background: rgba(0,174,229,1);}",
-                "@keyframes ig-pulse { from { opacity:1; } to { opacity:0.55; } }",
+Solution:   Use a global sentinel to prevent double-initialization:
 
-                "@media (min-width: " + (MOBILE_BREAKPOINT + 1) + "px) {",
-                "  #" + INDICATOR_ID + " { gap: 8px; justify-content: flex-start; margin-bottom: 0px; margin-top: 0; max-width: 540px; }",
-                "  .ig-step__bar-track { margin-top: 6px; }",
-                "  .ig-step__label { font-size: 12px; }",
-                "  .banner-text p { font-size: 44px !important; }",
-                "  .ig-step__icon { width: 16.6px; height: 16.6px; }",
-                "  .ig-step__row { gap: 9px; margin-bottom: 12px !important; width: 100%; }",
-                "}",
+            if (window.__igCabInjectorActive) return;
+            window.__igCabInjectorActive = true;
 
-                ".ig-perk-icon { width: 32px; height: 32px; flex-shrink: 0; display: block; }",
+            And clear it in the destroy function:
+            window.__igCabInjectorActive = false;
 
-                "#" + USP_BAR_ID + " {",
-                "  display: flex; align-items: center; justify-content: space-evenly;",
-                "  background: rgba(175,228,255,1);",
-                "  border-radius: 8px;",
-                "  width: 100%; box-sizing: border-box;",
-                "  padding: 14px 24px;",
-                "  margin-top: 0px; margin-bottom: 0;",
-                "}",
+================================================================================
 
-                ".ig-usp-item {",
-                "  display: flex; align-items: center; gap: 10px;",
-                "  color: rgba(13,13,13,1);",
-                "  font-family: var(--font-family-poppins-medium, sans-serif) !important;",
-                "  font-size: 14px; font-weight: 500;",
-                "  flex: 1; justify-content: center;",
-                "}",
-                ".ig-usp-item span { font-family: var(--font-family-poppins-medium, sans-serif) !important; }",
+ISSUE #4 — Overly Broad MutationObserver (Performance)
+--------------------------------------------------------------------------------
+Line:       239-242
+Severity:   HIGH
+Code:       _observer.observe(document.body || document.documentElement, {
+                childList: true,
+                subtree: true
+            });
 
-                ".ig-usp-divider {",
-                "  width: 1px; height: 24px;",
-                "  background: #7A85A0;",
-                "  flex-shrink: 0;",
-                "}"
+Detail:     Observing the entire document subtree fires the callback on EVERY
+            DOM mutation anywhere on the page. On a complex SPA this can fire
+            hundreds of times per second (scrolls triggering lazy-load,
+            analytics, ads). Each firing calls mount() which runs multiple
+            querySelector calls — causing layout thrashing and jank.
 
-            ].join("\n");
-            document.head.appendChild(s);
-        }
+Solution:   1. Narrow the observe target to a known ancestor of the container.
+            2. Debounce the observer callback (like the resize handler).
+            3. Disconnect the observer once mounted:
 
-        /* ─────────────────────────────────────────────
-         * USP BAR
-         * ───────────────────────────────────────────── */
-        function buildUspBar() {
-            var bar = document.createElement("div");
-            bar.id = USP_BAR_ID;
-
-            PERKS.forEach(function(perk, i) {
-                var item = document.createElement("div");
-                item.className = "ig-usp-item";
-
-                var img = document.createElement("img");
-                img.src = perk.iconUrl;
-                img.alt = perk.text;
-                img.className = "ig-perk-icon";
-                item.appendChild(img);
-
-                var span = document.createElement("span");
-                span.textContent = perk.text;
-                item.appendChild(span);
-
-                bar.appendChild(item);
-
-                if (i < PERKS.length - 1) {
-                    var divider = document.createElement("div");
-                    divider.className = "ig-usp-divider";
-                    divider.setAttribute("aria-hidden", "true");
-                    bar.appendChild(divider);
+            _observer = new MutationObserver(function() {
+                if (!_mounted && mount()) {
+                    _observer.disconnect();
+                    _observer = null;
                 }
             });
 
-            return bar;
+================================================================================
+
+ISSUE #5 — Global Namespace Pollution
+--------------------------------------------------------------------------------
+Line:       258
+Severity:   MEDIUM-HIGH
+Code:       window.__igCabInjectorDestroy = function() { ... };
+
+Detail:     Exposing the destroy function on the global window object risks
+            name collisions with other scripts and allows any third-party
+            script on the page to call destroy — potentially used as a
+            denial-of-service against the UI component or to manipulate page
+            state.
+
+Solution:   Use a namespaced object or dispatch a CustomEvent pattern:
+
+            window.IndiGo = window.IndiGo || {};
+            window.IndiGo.cabInjector = { destroy: function() { ... } };
+
+            Or use a CustomEvent listener so external code cannot directly
+            invoke internal functions:
+
+            window.addEventListener('ig-cab-injector-destroy', function() { ... });
+
+================================================================================
+
+ISSUE #6 — External Resources Loaded Without Integrity/Fallback
+--------------------------------------------------------------------------------
+Lines:      35-37, 41, 42
+Severity:   MEDIUM-HIGH
+Code:       iconUrl: "https://www.goindigo.in/content/dam/..."
+            var CHECK_ICON = "https://www.goindigo.in/content/dam/..."
+            var CIRCLE_ICON = "https://www.goindigo.in/content/dam/..."
+
+Detail:     Images are loaded from a CDN without Subresource Integrity (SRI)
+            or error handling. If the CDN is compromised or images are
+            unavailable, the UI breaks silently or could serve malicious
+            content. No `onerror` fallback is provided for broken images.
+
+Solution:   Add error handlers to image elements:
+
+            img.onerror = function() { this.style.display = 'none'; };
+
+            And consider using inline SVGs or data URIs for critical icons
+            to eliminate external dependency.
+
+================================================================================
+
+ISSUE #7 — Race Condition in mount()
+--------------------------------------------------------------------------------
+Lines:      199-215
+Severity:   MEDIUM
+Code:       function mount() {
+                ...
+                if (_mounted) { ... return true; }
+                ...
+                _mounted = true;
+                return true;
+            }
+
+Detail:     The MutationObserver callback, heartbeat, and resize handler can
+            all invoke mount() near-simultaneously. JavaScript is single-
+            threaded, but the observer callback can fire between microtasks.
+            If `removeInjectedNodes()` runs while the observer detects the
+            removal and triggers another mount() synchronously, you can end up
+            with duplicate DOM nodes briefly.
+
+Solution:   Add a re-entrancy guard:
+
+            var _mounting = false;
+            function mount() {
+                if (_mounting) return false;
+                _mounting = true;
+                try { ... } finally { _mounting = false; }
+            }
+
+================================================================================
+
+ISSUE #8 — Heartbeat Does Not Re-mount After Container Removal
+--------------------------------------------------------------------------------
+Lines:      219-225
+Severity:   MEDIUM
+Code:       if (!container) {
+                _mounted = false;
+                return;        // <-- returns without attempting re-mount
+            }
+
+Detail:     When the container is removed (e.g., SPA navigation), the heartbeat
+            sets _mounted = false and returns. It does NOT attempt to re-mount
+            on subsequent ticks if the container reappears, because the early
+            `if (!_mounted) return;` on line 218 will skip the logic.
+
+Solution:   Remove the early return for `!_mounted` or change the logic to
+            attempt mount() when not mounted:
+
+            if (!_mounted) { mount(); return; }
+
+================================================================================
+
+Summary: 8 issues (5 HIGH, 3 MEDIUM)
+- Focus on #1 (XSS), #3 (duplicate init), and #4 (performance) first.
+================================================================================
+(function() {
+    "use strict";
+
+    /* ─────────────────────────────────────────────
+     * CONSTANTS
+     * ───────────────────────────────────────────── */
+    var STYLE_ID = "ig-cab-injector-styles";
+    var INDICATOR_ID = "ig-step-indicator";
+    var USP_BAR_ID = "ig-perks-bar";
+    var HEARTBEAT_MS = 800;
+    var CONTAINER_SEL = ".cab-bookingmf-container";
+    var MOBILE_BREAKPOINT = 1024; // ✅ Updated: matches mobile MF activation width
+
+    /* ─────────────────────────────────────────────
+     * STATE
+     * ───────────────────────────────────────────── */
+    var _mounted = false;
+    var _observer = null;
+    var _heartbeat = null;
+    var _resizeTimer = null; // ✅ Added for debounce
+
+    /* ─────────────────────────────────────────────
+     * DATA
+     * ───────────────────────────────────────────── */
+    var PERKS = [{
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
+            text: "Reserve at just ₹49*"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
+            text: "100% Confirmed rides"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
+            text: "Free cancellation until pickup"
+        }
+    ];
+
+    var CHECK_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_ticker.png?ui-ux=newui";
+    var CIRCLE_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabd_hd.png?ui-ux=newui";
+
+    var STEPS = [{
+            label: "Booked flight",
+            done: true
+        },
+        {
+            label: "Book Cab",
+            done: false
+        }
+    ];
+
+    /* ─────────────────────────────────────────────
+     * DESKTOP CHECK
+     * ───────────────────────────────────────────── */
+    function isDesktop() {
+        return window.innerWidth > MOBILE_BREAKPOINT; // ✅ Now hides below 1024px
+    }
+
+    /* ─────────────────────────────────────────────
+     * HELPERS
+     * ───────────────────────────────────────────── */
+    function safeRemoveById(id) {
+        var el = document.getElementById(id);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function removeInjectedNodes() {
+        [INDICATOR_ID, USP_BAR_ID].forEach(safeRemoveById);
+    }
+
+    /* ─────────────────────────────────────────────
+     * STYLES
+     * ───────────────────────────────────────────── */
+    function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        var s = document.createElement("style");
+        s.id = STYLE_ID;
+        s.textContent = [
+
+            ".ig-heading-blue { color: rgba(175,228,255,1); font-family: var(--font-family-bauhuas-std-medium) !important; }",
+            ".banner-text p {",
+            "  font-family: var(--font-family-bauhuas-std-medium) !important;",
+            "  font-size: 24px !important;",
+            "  white-space: normal !important;",
+            "  overflow: visible !important;",
+            "  text-overflow: unset !important;",
+            "}",
+
+            "#" + INDICATOR_ID + " {",
+            "  display: flex;",
+            "  align-items: flex-start;",
+            "  width: 100%;",
+            "  box-sizing: border-box;",
+            "}",
+            ".ig-step { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }",
+            ".ig-step__row { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; width: 100%; }",
+            ".ig-step__icon { width: 10px; height: 10px; flex-shrink: 0; display: block; }",
+            ".ig-step__icon--done   { filter: none; }",
+            ".ig-step__icon--active { filter: none; }",
+            ".ig-step__label {",
+            "  font-size: 11px; font-weight: 400; white-space: nowrap; color: #fff;",
+            "  letter-spacing: 0.01em;",
+            "  font-family: var(--font-family-poppins-regular, sans-serif);",
+            "}",
+            ".ig-step__bar-track { width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); overflow: hidden; }",
+            ".ig-step__bar-fill   { height: 100%; border-radius: 4px; transition: width .5s ease; width: 100%; }",
+            ".ig-step__bar-fill--done   { background: rgba(127,210,135,1); }",
+            ".ig-step__bar-fill--active { background: rgba(0,174,229,1); }",
+            "@keyframes ig-pulse { from { opacity:1; } to { opacity:0.55; } }",
+
+            // ✅ Updated: desktop styles only apply above 1024px
+            "@media (min-width: " + (MOBILE_BREAKPOINT + 1) + "px) {",
+            "  #" + INDICATOR_ID + " { gap: 8px; justify-content: flex-start; margin-bottom: 0px; margin-top: 0; max-width: 540px; }",
+            "  .ig-step__bar-track { margin-top: 6px; }",
+            "  .ig-step__label { font-size: 12px; }",
+            "  .banner-text p { font-size: 44px !important; }",
+            "  .ig-step__icon { width: 16.6px; height: 16.6px; }",
+            "  .ig-step__row { gap: 9px; margin-bottom: 12px !important; width: 100%; }",
+            "}",
+
+            ".ig-perk-icon { width: 32px; height: 32px; flex-shrink: 0; display: block; }",
+
+            "#" + USP_BAR_ID + " {",
+            "  display: flex; align-items: center; justify-content: space-evenly;",
+            "  background: rgba(175,228,255,1);",
+            "  border-radius: 8px;",
+            "  width: 100%; box-sizing: border-box;",
+            "  padding: 14px 24px;",
+            "  margin-top: 0px; margin-bottom: 0;",
+            "}",
+
+            ".ig-usp-item {",
+            "  display: flex; align-items: center; gap: 10px;",
+            "  color: rgba(13,13,13,1);",
+            "  font-family: var(--font-family-poppins-medium, sans-serif) !important;",
+            "  font-size: 14px; font-weight: 500;",
+            "  flex: 1; justify-content: center;",
+            "}",
+            ".ig-usp-item span { font-family: var(--font-family-poppins-medium, sans-serif) !important; }",
+
+            ".ig-usp-divider {",
+            "  width: 1px; height: 24px;",
+            "  background: #7A85A0;",
+            "  flex-shrink: 0;",
+            "}"
+
+        ].join("\n");
+        document.head.appendChild(s);
+    }
+
+    /* ─────────────────────────────────────────────
+     * USP BAR
+     * ───────────────────────────────────────────── */
+    function buildUspBar() {
+        var bar = document.createElement("div");
+        bar.id = USP_BAR_ID;
+
+        PERKS.forEach(function(perk, i) {
+            var item = document.createElement("div");
+            item.className = "ig-usp-item";
+
+            var img = document.createElement("img");
+            img.src = perk.iconUrl;
+            img.alt = perk.text;
+            img.className = "ig-perk-icon";
+            item.appendChild(img);
+
+            var span = document.createElement("span");
+            span.textContent = perk.text;
+            item.appendChild(span);
+
+            bar.appendChild(item);
+
+            if (i < PERKS.length - 1) {
+                var divider = document.createElement("div");
+                divider.className = "ig-usp-divider";
+                divider.setAttribute("aria-hidden", "true");
+                bar.appendChild(divider);
+            }
+        });
+
+        return bar;
+    }
+
+    /* ─────────────────────────────────────────────
+     * STEP INDICATOR
+     * ───────────────────────────────────────────── */
+    function buildStepIndicator() {
+        var indicator = document.createElement("div");
+        indicator.id = INDICATOR_ID;
+
+        STEPS.forEach(function(step) {
+            var stepEl = document.createElement("div");
+            stepEl.className = "ig-step";
+
+            var row = document.createElement("div");
+            row.className = "ig-step__row";
+
+            var img = document.createElement("img");
+            img.src = step.done ? CHECK_ICON : CIRCLE_ICON;
+            img.alt = step.label;
+            img.className = "ig-step__icon " + (step.done ? "ig-step__icon--done" : "ig-step__icon--active");
+
+            var label = document.createElement("span");
+            label.className = "ig-step__label";
+            label.textContent = step.label;
+
+            row.appendChild(img);
+            row.appendChild(label);
+
+            var track = document.createElement("div");
+            track.className = "ig-step__bar-track";
+
+            var fill = document.createElement("div");
+            fill.className = "ig-step__bar-fill " + (step.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
+
+            track.appendChild(fill);
+            stepEl.appendChild(row);
+            stepEl.appendChild(track);
+            indicator.appendChild(stepEl);
+        });
+
+        return indicator;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEADING PATCH
+     * ───────────────────────────────────────────── */
+    function patchHeading(container) {
+        var p = container.querySelector(".banner-text p");
+        if (!p) return;
+        p.innerHTML = '<span class="ig-heading-blue">Heading to the airport? </span> Book a cab now ';
+    }
+
+    /* ─────────────────────────────────────────────
+     * MOUNT
+     * ───────────────────────────────────────────── */
+    function mount() {
+        if (!isDesktop()) {
+            if (_mounted) {
+                _mounted = false;
+                removeInjectedNodes();
+            }
+            return false;
         }
 
-        /* ─────────────────────────────────────────────
-         * STEP INDICATOR
-         * ───────────────────────────────────────────── */
-        function buildStepIndicator() {
-            var indicator = document.createElement("div");
-            indicator.id = INDICATOR_ID;
+        var container = document.querySelector(CONTAINER_SEL);
+        if (!container) return false;
 
-            STEPS.forEach(function(step) {
-                var stepEl = document.createElement("div");
-                stepEl.className = "ig-step";
-
-                var row = document.createElement("div");
-                row.className = "ig-step__row";
-
-                var img = document.createElement("img");
-                img.src = step.done ? CHECK_ICON : CIRCLE_ICON;
-                img.alt = step.label;
-                img.className = "ig-step__icon " + (step.done ? "ig-step__icon--done" : "ig-step__icon--active");
-
-                var label = document.createElement("span");
-                label.className = "ig-step__label";
-                label.textContent = step.label;
-
-                row.appendChild(img);
-                row.appendChild(label);
-
-                var track = document.createElement("div");
-                track.className = "ig-step__bar-track";
-
-                var fill = document.createElement("div");
-                fill.className = "ig-step__bar-fill " + (step.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
-
-                track.appendChild(fill);
-                stepEl.appendChild(row);
-                stepEl.appendChild(track);
-                indicator.appendChild(stepEl);
-            });
-
-            return indicator;
+        if (_mounted) {
+            var existingIndicator = document.getElementById(INDICATOR_ID);
+            if (existingIndicator && container.contains(existingIndicator)) return true;
+            _mounted = false;
         }
 
-        /* ─────────────────────────────────────────────
-         * HEADING PATCH
-         * ───────────────────────────────────────────── */
-        function patchHeading(container) {
-            var p = container.querySelector(".banner-text p");
-            if (!p) return;
-            p.innerHTML = '<span class="ig-heading-blue">Heading to the airport? </span> Book a cab now ';
+        injectStyles();
+        removeInjectedNodes();
+        patchHeading(container);
+
+        var indicator = buildStepIndicator();
+        var uspBar = buildUspBar();
+        var heading = container.querySelector(".banner-text");
+
+        if (heading) {
+            container.insertBefore(indicator, heading);
+            heading.insertAdjacentElement("afterend", uspBar);
+        } else {
+            container.insertBefore(uspBar, container.firstChild);
+            container.insertBefore(indicator, container.firstChild);
         }
 
-        /* ─────────────────────────────────────────────
-         * MOUNT
-         * ───────────────────────────────────────────── */
-        function mount() {
+        _mounted = true;
+        return true;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEARTBEAT
+     * ───────────────────────────────────────────── */
+    function startHeartbeat() {
+        if (_heartbeat) return;
+        _heartbeat = setInterval(function() {
             if (!isDesktop()) {
                 if (_mounted) {
                     _mounted = false;
                     removeInjectedNodes();
                 }
-                return false;
+                return;
             }
+            if (!_mounted) return;
 
             var container = document.querySelector(CONTAINER_SEL);
-            if (!container) return false;
-
-            if (_mounted) {
-                var existingIndicator = document.getElementById(INDICATOR_ID);
-                if (existingIndicator && container.contains(existingIndicator)) return true;
+            if (!container) {
                 _mounted = false;
-            }
-
-            injectStyles();
-            removeInjectedNodes();
-            patchHeading(container);
-
-            var indicator = buildStepIndicator();
-            var uspBar = buildUspBar();
-            var heading = container.querySelector(".banner-text");
-
-            if (heading) {
-                container.insertBefore(indicator, heading);
-                heading.insertAdjacentElement("afterend", uspBar);
-            } else {
-                container.insertBefore(uspBar, container.firstChild);
-                container.insertBefore(indicator, container.firstChild);
-            }
-
-            _mounted = true;
-            return true;
-        }
-
-        /* ─────────────────────────────────────────────
-         * HEARTBEAT
-         * ───────────────────────────────────────────── */
-        function startHeartbeat() {
-            if (_heartbeat) return;
-            _heartbeat = setInterval(function() {
-                if (!isDesktop()) {
-                    if (_mounted) {
-                        _mounted = false;
-                        removeInjectedNodes();
-                    }
-                    return;
-                }
-                if (!_mounted) return;
-
-                var container = document.querySelector(CONTAINER_SEL);
-                if (!container) {
-                    _mounted = false;
-                    return;
-                }
-
-                var indicator = document.getElementById(INDICATOR_ID);
-                if (!indicator || !container.contains(indicator)) {
-                    _mounted = false;
-                    mount();
-                }
-            }, HEARTBEAT_MS);
-        }
-
-        /* ─────────────────────────────────────────────
-         * MUTATION OBSERVER
-         * ───────────────────────────────────────────── */
-        function startObserver() {
-            if (_observer) return;
-
-            if (typeof MutationObserver === "undefined") {
-                var pollTimer = setInterval(function() {
-                    if (mount()) clearInterval(pollTimer);
-                }, 500);
                 return;
             }
 
-            _observer = new MutationObserver(function() {
-                if (!_mounted) mount();
-            });
-
-            _observer.observe(document.body || document.documentElement, {
-                childList: true,
-                subtree: true
-            });
-        }
-
-        /* ─────────────────────────────────────────────
-         * RESIZE
-         * ───────────────────────────────────────────── */
-        function onResize() {
-            if (!isDesktop() && _mounted) {
+            var indicator = document.getElementById(INDICATOR_ID);
+            if (!indicator || !container.contains(indicator)) {
                 _mounted = false;
-                removeInjectedNodes();
-            } else if (isDesktop() && !_mounted) {
                 mount();
             }
+        }, HEARTBEAT_MS);
+    }
+
+    /* ─────────────────────────────────────────────
+     * MUTATION OBSERVER
+     * ───────────────────────────────────────────── */
+    function startObserver() {
+        if (_observer) return;
+
+        if (typeof MutationObserver === "undefined") {
+            var pollTimer = setInterval(function() {
+                if (mount()) clearInterval(pollTimer);
+            }, 500);
+            return;
         }
 
-        /* ─────────────────────────────────────────────
-         * PUBLIC DESTROY
-         * ───────────────────────────────────────────── */
-        window.__igCabInjectorDestroy = function() {
-            if (_observer) {
-                _observer.disconnect();
-                _observer = null;
-            }
-            if (_heartbeat) {
-                clearInterval(_heartbeat);
-                _heartbeat = null;
-            }
+        _observer = new MutationObserver(function() {
+            if (!_mounted) mount();
+        });
 
-            window.removeEventListener("resize", onResize);
+        _observer.observe(document.body || document.documentElement, {
+            childList: true,
+            subtree: true
+        });
+    }
 
-            removeInjectedNodes();
-
-            var styleEl = document.getElementById(STYLE_ID);
-            if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
-
-            var p = document.querySelector(".banner-text p");
-            if (p) p.textContent = "Heading to the airport? Book a cab now";
-
+    /* ─────────────────────────────────────────────
+     * RESIZE — ✅ Debounced to avoid thrashing
+     * ───────────────────────────────────────────── */
+    function onResize() {
+        if (!isDesktop() && _mounted) {
             _mounted = false;
-        };
-
-        /* ─────────────────────────────────────────────
-         * INIT
-         * ───────────────────────────────────────────── */
-        function init() {
-            window.addEventListener("resize", onResize);
+            removeInjectedNodes();
+        } else if (isDesktop() && !_mounted) {
             mount();
-            startObserver();
-            startHeartbeat();
+        }
+    }
+
+    function onResizeDebounced() {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(onResize, 150);
+    }
+
+    /* ─────────────────────────────────────────────
+     * PUBLIC DESTROY
+     * ───────────────────────────────────────────── */
+    window.__igCabInjectorDestroy = function() {
+        if (_observer) {
+            _observer.disconnect();
+            _observer = null;
+        }
+        if (_heartbeat) {
+            clearInterval(_heartbeat);
+            _heartbeat = null;
         }
 
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", init);
-        } else {
-            init();
-        }
+        // ✅ Clear debounce timer on destroy
+        clearTimeout(_resizeTimer);
+        _resizeTimer = null;
 
-    })();
-</script>
+        window.removeEventListener("resize", onResizeDebounced);
+
+        removeInjectedNodes();
+
+        var styleEl = document.getElementById(STYLE_ID);
+        if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+
+        var p = document.querySelector(".banner-text p");
+        if (p) p.textContent = "Heading to the airport? Book a cab now";
+
+        _mounted = false;
+    };
+
+    /* ─────────────────────────────────────────────
+     * INIT
+     * ───────────────────────────────────────────── */
+    function init() {
+        window.addEventListener("resize", onResizeDebounced); // ✅ Debounced
+        mount();
+        startObserver();
+        startHeartbeat();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+
+})();
