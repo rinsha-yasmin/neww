@@ -1,1 +1,532 @@
-new
+
+```javascript
+(function() {
+    "use strict";
+
+    /* ─────────────────────────────────────────────
+     * DUPLICATE INIT GUARD — Fix #6
+     * ───────────────────────────────────────────── */
+    if (window.__igCabMobileActive) return;
+    window.__igCabMobileActive = true;
+
+    /* ─────────────────────────────────────────────
+     * CONSTANTS
+     * ───────────────────────────────────────────── */
+    var STYLE_ID = "ig-cab-injector-styles-mobile"; // ✅ Fix #4: unique ID, no collision with desktop
+    var INDICATOR_ID = "ig-step-indicator";
+    var CAROUSEL_ID = "ig-perks-carousel";
+    var DOTS_ID = "ig-perks-dots";
+    var CAROUSEL_INTERVAL = 3000;
+    var HEARTBEAT_MS = 800;
+    var CONTAINER_SEL = ".cab-bookingmf-container";
+    var MOBILE_BREAKPOINT = 768;
+
+    /* ─────────────────────────────────────────────
+     * STATE
+     * ───────────────────────────────────────────── */
+    var _carouselTimer = null;
+    var _carouselIndex = 0;
+    var _carouselDots = [];
+    var _mounted = false;
+    var _observer = null;
+    var _heartbeat = null;
+    var _resizeTimer = null; // ✅ Fix #3: for debounced resize
+
+    /* ─────────────────────────────────────────────
+     * DATA
+     * ───────────────────────────────────────────── */
+    var PERKS = [
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar_cabs.png?ui-ux=newui",
+            text: "Reserve at just ₹49*"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Img_exit_intent_1.png?ui-ux=newui",
+            text: "100% Confirmed rides"
+        },
+        {
+            iconUrl: "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Progress_bar.png?ui-ux=newui",
+            text: "Free cancellation until pickup"
+        }
+    ];
+
+    var CHECK_ICON  = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Vector_ticker.png?ui-ux=newui";
+    var CIRCLE_ICON = "https://www.goindigo.in/content/dam/marketplace/in/en/assets/Cabs/Cabd_hd.png?ui-ux=newui";
+
+    var STEPS = [
+        { label: "Booked flight", done: true  },
+        { label: "Book Cab",      done: false }
+    ];
+
+    /* ─────────────────────────────────────────────
+     * MOBILE CHECK
+     * ───────────────────────────────────────────── */
+    function isMobile() {
+        return window.innerWidth <= MOBILE_BREAKPOINT;
+    }
+
+    /* ─────────────────────────────────────────────
+     * STYLES
+     * ───────────────────────────────────────────── */
+    function injectStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+        var s = document.createElement("style");
+        s.id = STYLE_ID;
+        s.textContent = [
+            ".ig-heading-blue { color: rgba(175,228,255,1);font-family: var(--font-family-bauhuas-std-medium)!important; }",
+
+            ".banner-text p {",
+            "  font-family: var(--font-family-bauhuas-std-medium) !important;",
+            "  font-size: 24px !important;",
+            "  white-space: normal !important;",
+            "  overflow: visible !important;",
+            "  text-overflow: unset !important;",
+            "}",
+
+            "#" + INDICATOR_ID + " {",
+            "  display:flex; gap:6px; align-items:flex-start;",
+            "  justify-content:center; width:100%;",
+            "  box-sizing:border-box; margin-top:20px;",
+            "}",
+            ".ig-step { display:flex; flex-direction:column; align-items:flex-start; flex:1; min-width:0; margin-top:20px;}",
+            ".ig-step__row { display:flex; align-items:center; gap:5px; margin-bottom:8px; width:100%; }",
+            ".ig-step__icon { width:10px; height:10px; flex-shrink:0; display:block; }",
+            ".ig-step__icon--done   { filter:none; }",
+            ".ig-step__icon--active { filter:none; }",
+            ".ig-step__label { font-size:11px; font-weight:400; white-space:nowrap; color:#fff;",
+            "  letter-spacing:0.01em; font-family:var(--font-family-poppins-regular, sans-serif); }",
+            ".ig-step__bar-track { width:100%; height:8px; border-radius:4px;",
+            "  background:rgba(255,255,255,0.2); overflow:hidden; margin-top:8px !important; }",
+            ".ig-step__bar-fill { height:100%; border-radius:4px; transition:width .5s ease; width:100%; }",
+            ".ig-step__bar-fill--done   { background:rgba(127,210,135,1); }",
+            ".ig-step__bar-fill--active { background:rgba(0,174,229,1);",
+            "  animation:ig-pulse .9s ease-in-out infinite alternate; }",
+            ".ig-perk-icon {",
+            "  width:32px; height:32px; flex-shrink:0; display:block;",
+            "  filter:none;",
+            "}",
+            "#" + CAROUSEL_ID + " {",
+            "  background:rgba(175,228,255,1); border:none;",
+            "  border-radius:8px; padding:16px;",
+            "  width:100%; box-sizing:border-box;",
+            "  display:flex; flex-direction:column; align-items:center;",
+            "}",
+            ".ig-carousel-track { overflow:hidden; width:100%; display:block; }",
+            ".ig-carousel-slides {",
+            "  display:flex; transition:transform 0.4s cubic-bezier(0.4,0,0.2,1);",
+            "  will-change:transform;",
+            "}",
+            ".ig-carousel-slide {",
+            "  min-width:100%; display:flex; align-items:center;",
+            "  justify-content:center; gap:8px;",
+            "  color:rgba(13,13,13,1);",
+            "  font-family:var(--font-family-poppins-medium) !important;",
+            "  font-size:14px; font-weight:500;",
+            "}",
+            ".ig-carousel-slide span { font-family:var(--font-family-poppins-medium) !important; }",
+            "#" + DOTS_ID + " {",
+            "  display:flex; justify-content:center; align-items:center; gap:5px;",
+            "  width:100%; padding:0px 16px;",
+            "  border-radius:8px; box-sizing:border-box;",
+            "}",
+            ".ig-carousel-dot {",
+            "  width:8px; height:8px; border-radius:50%;",
+            "  background:rgba(255,255,255,1); cursor:pointer;",
+            "  transition:all 0.3s ease; border:none; padding:0; outline:none;",
+            "}",
+            ".ig-carousel-dot--active {",
+            "  background:rgba(169,125,14,1); width:28px; height:8px; border-radius:6px;",
+            "}"
+        ].join("\n");
+        document.head.appendChild(s);
+    }
+
+    /* ─────────────────────────────────────────────
+     * CAROUSEL LOGIC
+     * ───────────────────────────────────────────── */
+    function goToSlide(index) {
+        _carouselIndex = index;
+        var inner = document.getElementById("ig-carousel-slides-inner");
+        if (inner) {
+            inner.style.transform = "translateX(-" + (index * 100) + "%)";
+        }
+        _carouselDots.forEach(function(dot, i) {
+            dot.className = "ig-carousel-dot" + (i === index ? " ig-carousel-dot--active" : "");
+        });
+    }
+
+    function startCarousel() {
+        stopCarousel();
+        // ✅ Fix #7: null-check before advancing slide
+        _carouselTimer = setInterval(function() {
+            var inner = document.getElementById("ig-carousel-slides-inner");
+            if (!inner) { stopCarousel(); return; }
+            goToSlide((_carouselIndex + 1) % PERKS.length);
+        }, CAROUSEL_INTERVAL);
+    }
+
+    function stopCarousel() {
+        if (_carouselTimer) {
+            clearInterval(_carouselTimer);
+            _carouselTimer = null;
+        }
+    }
+
+    /* ─────────────────────────────────────────────
+     * PERKS CAROUSEL BUILDER
+     * ───────────────────────────────────────────── */
+    function buildPerksCarousel() {
+        _carouselDots  = [];
+        _carouselIndex = 0;
+
+        var carousel = document.createElement("div");
+        carousel.id = CAROUSEL_ID;
+
+        var track = document.createElement("div");
+        track.className = "ig-carousel-track";
+
+        var slidesWrap = document.createElement("div");
+        slidesWrap.id = "ig-carousel-slides-inner";
+        slidesWrap.className = "ig-carousel-slides";
+
+        PERKS.forEach(function(perk) {
+            var slide = document.createElement("div");
+            slide.className = "ig-carousel-slide";
+
+            var img = document.createElement("img");
+            img.src = perk.iconUrl;
+            img.alt = perk.text;
+            img.className = "ig-perk-icon";
+            img.onerror = function() { this.style.display = "none"; }; // ✅ Fix #9
+            slide.appendChild(img);
+
+            var span = document.createElement("span");
+            span.textContent = perk.text;
+            slide.appendChild(span);
+
+            slidesWrap.appendChild(slide);
+        });
+
+        track.appendChild(slidesWrap);
+        carousel.appendChild(track);
+
+        var touchStartX = 0;
+        track.addEventListener("touchstart", function(e) {
+            touchStartX = e.touches[0].clientX;
+            stopCarousel();
+        }, { passive: true });
+
+        track.addEventListener("touchend", function(e) {
+            var diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 30) {
+                var next = diff > 0
+                    ? (_carouselIndex + 1) % PERKS.length
+                    : (_carouselIndex - 1 + PERKS.length) % PERKS.length;
+                goToSlide(next);
+            }
+            startCarousel();
+        }, { passive: true });
+
+        var dotsWrap = document.createElement("div");
+        dotsWrap.id = DOTS_ID;
+
+        PERKS.forEach(function(_, i) {
+            var dot = document.createElement("button");
+            dot.className = "ig-carousel-dot" + (i === 0 ? " ig-carousel-dot--active" : "");
+            dot.setAttribute("aria-label", "Slide " + (i + 1));
+            (function(idx) {
+                dot.addEventListener("click", function() {
+                    goToSlide(idx);
+                    stopCarousel();
+                    startCarousel();
+                });
+            })(i);
+            _carouselDots.push(dot);
+            dotsWrap.appendChild(dot);
+        });
+
+        return { carousel: carousel, dots: dotsWrap };
+    }
+
+    /* ─────────────────────────────────────────────
+     * STEP INDICATOR BUILDER
+     * ───────────────────────────────────────────── */
+    function buildStepIndicator() {
+        var indicator = document.createElement("div");
+        indicator.id = INDICATOR_ID;
+
+        STEPS.forEach(function(s) {
+            var stepEl = document.createElement("div");
+            stepEl.className = "ig-step";
+
+            var row = document.createElement("div");
+            row.className = "ig-step__row";
+
+            var img = document.createElement("img");
+            img.src = s.done ? CHECK_ICON : CIRCLE_ICON;
+            img.alt = s.label;
+            img.className = "ig-step__icon " + (s.done ? "ig-step__icon--done" : "ig-step__icon--active");
+            img.onerror = function() { this.style.display = "none"; }; // ✅ Fix #9
+
+            var label = document.createElement("span");
+            label.className = "ig-step__label";
+            label.textContent = s.label;
+
+            row.appendChild(img);
+            row.appendChild(label);
+
+            var track = document.createElement("div");
+            track.className = "ig-step__bar-track";
+
+            var fill = document.createElement("div");
+            fill.className = "ig-step__bar-fill " + (s.done ? "ig-step__bar-fill--done" : "ig-step__bar-fill--active");
+
+            track.appendChild(fill);
+            stepEl.appendChild(row);
+            stepEl.appendChild(track);
+            indicator.appendChild(stepEl);
+        });
+
+        return indicator;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEADING PATCH — Fix #1: replaced innerHTML with DOM APIs
+     * ───────────────────────────────────────────── */
+    function patchHeading(container) {
+        var p = container.querySelector(".banner-text p");
+        if (!p) return;
+
+        // ✅ Fix #1: no innerHTML — safe DOM construction
+        p.textContent = "";
+        var span = document.createElement("span");
+        span.className = "ig-heading-blue";
+        span.textContent = "Heading to the airport? ";
+        p.appendChild(span);
+        p.appendChild(document.createTextNode(" Book a cab now "));
+    }
+
+    /* ─────────────────────────────────────────────
+     * HELPERS
+     * ───────────────────────────────────────────── */
+    function removeInjectedNodes() {
+        [INDICATOR_ID, CAROUSEL_ID, DOTS_ID].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+        });
+    }
+
+    /* ─────────────────────────────────────────────
+     * MOUNT
+     * ───────────────────────────────────────────── */
+    function mount() {
+        if (!isMobile()) return false;
+
+        var container = document.querySelector(CONTAINER_SEL);
+        if (!container) return false;
+
+        if (_mounted) {
+            var indicator = document.getElementById(INDICATOR_ID);
+            if (indicator && container.contains(indicator)) return true;
+            _mounted = false;
+            stopCarousel();
+        }
+
+        injectStyles();
+        removeInjectedNodes();
+        patchHeading(container);
+
+        var indicator = buildStepIndicator();
+        var perks     = buildPerksCarousel();
+        var heading   = container.querySelector(".banner-text");
+
+        if (heading) {
+            container.insertBefore(indicator, heading);
+            heading.insertAdjacentElement("afterend", perks.carousel);
+            perks.carousel.insertAdjacentElement("afterend", perks.dots);
+        } else {
+            container.insertBefore(perks.dots, container.firstChild);
+            container.insertBefore(perks.carousel, container.firstChild);
+            container.insertBefore(indicator, container.firstChild);
+        }
+
+        startCarousel();
+        _mounted = true;
+        return true;
+    }
+
+    /* ─────────────────────────────────────────────
+     * HEARTBEAT — Fix #10: attempt re-mount when container reappears
+     * ───────────────────────────────────────────── */
+    function startHeartbeat() {
+        if (_heartbeat) return;
+        _heartbeat = setInterval(function() {
+            if (!isMobile()) {
+                if (_mounted) {
+                    _mounted = false;
+                    stopCarousel();
+                    removeInjectedNodes();
+                }
+                return;
+            }
+
+            // ✅ Fix #10: always attempt mount when not mounted
+            if (!_mounted) { mount(); return; }
+
+            var container = document.querySelector(CONTAINER_SEL);
+            if (!container) {
+                _mounted = false;
+                stopCarousel();
+                return;
+            }
+
+            var indicator = document.getElementById(INDICATOR_ID);
+            if (!indicator || !container.contains(indicator)) {
+                _mounted = false;
+                stopCarousel();
+                mount();
+            }
+        }, HEARTBEAT_MS);
+    }
+
+    /* ─────────────────────────────────────────────
+     * MUTATION OBSERVER — Fix #5: disconnect once mounted
+     * ───────────────────────────────────────────── */
+    function startObserver() {
+        if (_observer) return;
+
+        if (typeof MutationObserver === "undefined") {
+            // ✅ Fix #2: bounded polling with max attempt count
+            var pollCount = 0;
+            var MAX_POLLS = 40; // 20 seconds max at 500ms
+            var pollTimer = setInterval(function() {
+                pollCount++;
+                if (mount() || pollCount >= MAX_POLLS) clearInterval(pollTimer);
+            }, 500);
+            return;
+        }
+
+        // ✅ Fix #5: disconnect after successful mount
+        _observer = new MutationObserver(function() {
+            if (!_mounted && mount()) {
+                _observer.disconnect();
+                _observer = null;
+            }
+        });
+
+        _observer.observe(document.body || document.documentElement, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    /* ─────────────────────────────────────────────
+     * VISIBILITY
+     * ───────────────────────────────────────────── */
+    function onVisibilityChange() {
+        if (document.visibilityState === "hidden") {
+            stopCarousel();
+        } else if (_mounted && isMobile()) {
+            startCarousel();
+        }
+    }
+
+    /* ─────────────────────────────────────────────
+     * RESIZE — Fix #3: debounced
+     * ───────────────────────────────────────────── */
+    function onResize() {
+        if (!isMobile() && _mounted) {
+            _mounted = false;
+            stopCarousel();
+            removeInjectedNodes();
+        } else if (isMobile() && !_mounted) {
+            mount();
+        }
+    }
+
+    // ✅ Fix #3: debounced resize handler
+    function onResizeDebounced() {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(onResize, 150);
+    }
+
+    /* ─────────────────────────────────────────────
+     * PUBLIC DESTROY — Fix #8: namespaced, no collision with desktop
+     * ───────────────────────────────────────────── */
+    // ✅ Fix #8: namespaced under window.IndiGo.cabMobile
+    window.IndiGo = window.IndiGo || {};
+    window.IndiGo.cabMobile = {
+        destroy: function() {
+            stopCarousel();
+
+            if (_observer) {
+                _observer.disconnect();
+                _observer = null;
+            }
+            if (_heartbeat) {
+                clearInterval(_heartbeat);
+                _heartbeat = null;
+            }
+
+            // ✅ Fix #3: clear debounce timer on destroy
+            clearTimeout(_resizeTimer);
+            _resizeTimer = null;
+
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("resize", onResizeDebounced); // ✅ matches debounced ref
+
+            removeInjectedNodes();
+
+            var styleEl = document.getElementById(STYLE_ID);
+            if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+
+            var p = document.querySelector(".banner-text p");
+            if (p) p.textContent = "Heading to the airport? Book a cab now";
+
+            _mounted       = false;
+            _carouselDots  = [];
+            _carouselIndex = 0;
+
+            // ✅ Fix #6: release sentinel so script can re-initialize if needed
+            window.__igCabMobileActive = false;
+        }
+    };
+
+    /* ─────────────────────────────────────────────
+     * INIT
+     * ───────────────────────────────────────────── */
+    function init() {
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("resize", onResizeDebounced); // ✅ Fix #3: debounced
+        // ✅ Fix #7: pagehide cleanup for bfcache
+        window.addEventListener("pagehide", stopCarousel);
+        mount();
+        startObserver();
+        startHeartbeat();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+
+})();
+```
+
+---
+
+Summary of every fix applied:
+
+| Issue | Fix |
+|---|---|
+| **#1 XSS via innerHTML** | `patchHeading()` uses `createElement` + `textContent` + `createTextNode` |
+| **#2 Unbounded polling** | Capped at `MAX_POLLS = 40` (20s max at 500ms intervals) |
+| **#3 Resize not debounced** | `_resizeTimer` + `onResizeDebounced()` added; `addEventListener` and `removeEventListener` both use debounced ref; timer cleared in destroy |
+| **#4 STYLE_ID collision** | Changed to `"ig-cab-injector-styles-mobile"` |
+| **#5 Overly broad observer** | Observer disconnects itself after first successful `mount()` |
+| **#6 No double-init guard** | `window.__igCabMobileActive` sentinel at top; cleared in destroy |
+| **#7 Carousel timer leak** | `startCarousel` null-checks `ig-carousel-slides-inner` before advancing; `pagehide` listener added |
+| **#8 Destroy name collision** | Moved to `window.IndiGo.cabMobile.destroy()` |
+| **#9 No image error handling** | `img.onerror = function() { this.style.display = "none"; }` on all images |
+| **#10 Heartbeat skips re-mount** | `if (!_mounted) { mount(); return; }` now runs before container check |
